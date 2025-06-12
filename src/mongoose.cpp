@@ -11,15 +11,15 @@ using bsoncxx::builder::stream::close_document;
 using bsoncxx::builder::stream::finalize;
 using namespace mongoose;
 
-static bsoncxx::document::value to_bson(const json_value& j){
+static inline bsoncxx::document::value to_bson(const json_value& j){
     return bsoncxx::from_json(j.dump());
 }
 
-static json_value to_json(const bsoncxx::document::view& view){
+static inline json_value to_json(const bsoncxx::document::view& view){
     return json_value::parse(bsoncxx::to_json(view));
 }
 
-std::optional<json_value> mongoose::find(mongocxx::collection& collection, const json_value& filter) {
+std::optional<json_value> mongoose::find_one(mongocxx::collection& collection, const json_value& filter) {
     auto result = collection.find_one(to_bson(filter).view());
     return result ? std::make_optional(to_json(*result)) : std::nullopt;
 }
@@ -48,10 +48,6 @@ bool mongoose::update(mongocxx::collection& collection, const json_value& filter
 bool mongoose::remove(mongocxx::collection& collection, const json_value& filter) {
     auto result = collection.delete_one(to_bson(filter).view());
     return result && result->deleted_count() > 0;
-}
-
-std::optional<json_value> mongoose::find_one(mongocxx::collection& collection, const json_value& filter) {
-    return find(collection, filter);
 }
 
 std::vector<json_value> mongoose::find_all(mongocxx::collection& collection, const json_value& filter, int skip, int limit) {

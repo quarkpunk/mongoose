@@ -49,7 +49,16 @@ public:
         auto conn = mongo->pool.acquire();
         auto coll = conn->database(database).collection(collection);
         auto value = mongoose::find_by_id(coll, id);
-        if(!value.has_value()) return false;
+        if(!value) return false;
+        out_data = value.value();
+        mongoose::traits::set_id_from_json(out_data, value.value());
+        return true;
+    };
+    virtual bool find_one(T& out_data, const json_value& filter){
+        auto conn = mongo->pool.acquire();
+        auto coll = conn->database(database).collection(collection);
+        auto value = mongoose::find_one(coll, filter);
+        if(!value) return false;
         out_data = value.value();
         mongoose::traits::set_id_from_json(out_data, value.value());
         return true;
@@ -103,6 +112,15 @@ public:
         auto conn = mongo->pool.acquire();
         auto coll = conn->database(database).collection(collection);
         auto value = mongoose::find_by_id(coll, id);
+        if(!value) return false;
+        out_data = value.value();
+        mongoose::model::from_json_mongo_id(out_data);
+        return true;
+    };
+    virtual bool json_find_one(json_value& out_data, const json_value& filter){
+        auto conn = mongo->pool.acquire();
+        auto coll = conn->database(database).collection(collection);
+        auto value = mongoose::find_one(coll, filter);
         if(!value) return false;
         out_data = value.value();
         mongoose::model::from_json_mongo_id(out_data);

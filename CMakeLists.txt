@@ -31,7 +31,6 @@ target_precompile_headers(${PROJECT_NAME} PUBLIC
 
 # includes
 message("++ mongoose includes")
-message(${OpenSSL_INCLUDE_DIRS})
 message(${Boost_INCLUDE_DIRS})
 message(${mongocxx_INCLUDE_DIRS})
 message(${nlohmann_json_INCLUDE_DIRS})
