@@ -83,6 +83,14 @@ bool mongoose::update_id(mongocxx::collection& collection, const std::string& id
     return result && (result->modified_count() > 0 || result->upserted_id());
 }
 
+bool mongoose::update_id_raw(mongocxx::collection& collection, const std::string& id, const json_value& document_json, bool upsert) {
+    bsoncxx::oid oid{id};
+    auto filter = document{} << "_id" << oid << finalize;
+    auto options = mongocxx::options::update().upsert(upsert);
+    auto result = collection.update_one(filter.view(), to_bson(document_json), options);
+    return result && (result->modified_count() > 0 || result->upserted_id());
+}
+
 bool mongoose::remove_id(mongocxx::collection& collection, const std::string& id) {
     bsoncxx::oid oid{id};
     auto filter = document{} << "_id" << oid << finalize;

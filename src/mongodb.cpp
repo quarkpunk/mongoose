@@ -33,7 +33,6 @@ void mongodb::ping() {
     }
 }
 
-
 bool mongodb::index_create(const std::string& database, const std::string& collection, const index_value& index_def){
     try {
         auto conn = pool.acquire();
@@ -95,7 +94,6 @@ std::vector<std::string> mongodb::index_list(const std::string& database, const 
             }
         }
     } catch (const std::exception& e) {
-        // Логирование ошибки
         printf("mongodb: (index_list) %s\n", e.what());
     }
     return indexes;
@@ -110,19 +108,13 @@ void mongodb::index_list_print(const std::string& database, const std::string& c
         for (auto&& index : cursor) {
             if (auto name = index["name"]) {
                 std::cout << "- " << name.get_string().value.to_string();
-                
-                // Выводим информацию о полях индекса
                 if (auto key = index["key"]) {
                     std::cout << " (fields: " << bsoncxx::to_json(key.get_document()) << ")";
                 }
-                
-                // Выводим дополнительные свойства
                 std::vector<std::string> props;
                 if (index["unique"]) props.push_back("unique");
                 if (index["sparse"]) props.push_back("sparse");
                 if (index["expireAfterSeconds"]) props.push_back("TTL");
-                
-                // Выводим свойства без Boost
                 if (!props.empty()) {
                     std::cout << " [";
                     for (size_t i = 0; i < props.size(); ++i) {

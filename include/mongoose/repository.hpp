@@ -142,7 +142,7 @@ public:
         auto coll = conn->database(database).collection(collection);
         return mongoose::update_id(coll, id, data);
     };
-private:
+protected:
     mongoose::mongodb* mongo;
     std::string database;
     std::string collection;
