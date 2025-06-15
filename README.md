@@ -14,31 +14,32 @@ A simple and efficient C++ client for MongoDB, inspired by the Mongoose JavaScri
 - nlohmann/json (3.11)
 
 
+## Namespaces
+Description of the main methods of mongoose namespaces
+| namespace           | description                         |
+| ------------------- | ----------------------------------- |
+| mongoose            | main template methods for you       |
+| mongoose::base      | based methods of mongodb            |
+| mongoose::session   | methods for working with sessions   |
+| mongoose::model     | methods for working with models     |
+| mongoose::traits    | traits of the main model transformations |
+
+
 ## Repository
-Mongoose implements a basic CRUD repository that allows you to work with data at the model level <T> and raw JSON, the repository was created to template the main methods
+Mongoose implements a basic CRUD repository that allows you to work with data at the model level <T> and raw JSON, the repository was created to template the main methods, but be careful if you care about memory optimization, as this is a template CRUD class that does not have virtual methods
+
 ```cpp
-// your repository class
-// mongoose repository<T>
-class user_repos : public mongoose::repository<user>{
-public:
-    // constructor
-    tag(mongoose::mongodb* mongodb, 
-    const std::string database, 
-    const std::string collection) :
-    repository(mongodb, database, collection) {}
-};
+// mongodb instance
+mongoose::mongodb mongo("connection stirng");
+// template repositories
+mongoose::repository<model::auth> auth_repos(&mongo, "db", "auths");
+mongoose::repository<model::user> user_repos(&mongo, "db", "users");
+// use example
+model::auth auth_found;
+// return true if success
+auth_repos.find_id("56e6835a90ffdc6014c728c0", auth_found);
 ```
-```cpp
-// create mongodb connection
-mongoose::mongodb mongo("connection string");
-// your repos declarate
-user_repos(&mongo, "database", "collection");
-// use mongoose methods
-user_repos->create();
-user_repos->find_id();
-user_repos->update();
-user_repos->remove();
-```
+If the repository seems large to you, you can simply copy everything from `repository.hpp` and implement it as you wish in your header file using the templated pre-made methods
 
 
 ## Model/Schema
