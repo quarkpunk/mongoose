@@ -5,7 +5,9 @@ project(mongoose CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-add_compile_options(-fuse-ld=gold)
+
+# options
+option(MONGOOSE_BUILD_TESTS "Mongoose build tests" OFF)
 
 # packages
 find_package(mongocxx REQUIRED)
@@ -28,6 +30,12 @@ target_precompile_headers(${PROJECT_NAME} PUBLIC
     <string>
     <nlohmann/json.hpp>
 )
+
+# tests
+if(MONGOOSE_BUILD_TESTS)
+    message("++ mongoose tests")
+    add_subdirectory(${PROJECT_SOURCE_DIR}/tests)
+endif()
 
 # includes
 message("++ mongoose includes")

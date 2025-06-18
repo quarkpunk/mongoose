@@ -2,6 +2,7 @@
 #define QUARKPUNK_MONGOOSE_TRAITS_HPP
 
 #include<nlohmann/json.hpp>
+#include<optional>
 
 using json_value = nlohmann::json;
 

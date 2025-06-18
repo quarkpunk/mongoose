@@ -36,6 +36,11 @@ public:
         mongo_collection coll = conn->database(database).collection(collection);
         return mongoose::find_all(coll, out_datas, skip, max);
     }
+    bool find_all(std::vector<T>& out_datas, std::vector<std::string>& ids){
+        auto conn = mongo->pool.acquire();
+        mongo_collection coll = conn->database(database).collection(collection);
+        return mongoose::find_all(coll, ids, out_datas);
+    }
     bool find_id(const std::string& id, T& out_data){
         auto conn = mongo->pool.acquire();
         mongo_collection coll = conn->database(database).collection(collection);
@@ -51,6 +56,11 @@ public:
         mongo_collection coll = conn->database(database).collection(collection);
         return mongoose::insert_id(coll, data, id);
     }
+    bool create_many(const std::vector<T>& datas){
+        auto conn = mongo->pool.acquire();
+        mongo_collection coll = conn->database(database).collection(collection);
+        return mongoose::insert_many(coll, datas);
+    }
     bool create(const T& data, std::string& out_id){
         auto conn = mongo->pool.acquire();
         mongo_collection coll = conn->database(database).collection(collection);
@@ -60,6 +70,11 @@ public:
         auto conn = mongo->pool.acquire();
         mongo_collection coll = conn->database(database).collection(collection);
         return mongoose::update_id(coll, id, data);
+    }
+    bool remove_many(const std::vector<std::string>& ids){
+        auto conn = mongo->pool.acquire();
+        mongo_collection coll = conn->database(database).collection(collection);
+        return mongoose::remove_many(coll, ids);
     }
     bool remove(const std::string& id){
         auto conn = mongo->pool.acquire();
