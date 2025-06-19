@@ -16,7 +16,7 @@ bool inline from_string(T& model, const std::string& json_str){
     if(json_str.empty()) return false;
     try { model = json_value::parse(json_str); return true; }
     catch(const nlohmann::detail::exception& e) {
-        printf("model: from_string<%s> error -> %s\n", typeid(T).name(), e.what());
+        printf("model: from_string error -> %s\n", e.what());
         return false;
     }
     return true;
@@ -26,7 +26,7 @@ template<typename T>
 const std::string inline to_string(T& model){
     try { return json_value(model).dump(); }
     catch(const nlohmann::detail::exception& e) {
-        printf("model: to_string<%s> error -> %s\n", typeid(T).name(), e.what());
+        printf("model: to_string error -> %s\n", e.what());
         return {};
     }
 }
@@ -43,7 +43,23 @@ const std::string inline to_string_array_with_id(std::vector<T>& models){
         }
         return document_json.dump();
     } catch(const nlohmann::detail::exception& e) {
-        printf("model: to_string_array<%s> error: %s\n", typeid(T).name(), e.what());
+        printf("model: to_string_array error: %s\n", e.what());
+        return {};
+    }
+}
+// dump std::vector<T> to string json array
+template<typename T>
+const std::string inline to_string_array(std::vector<T>& models){
+    try{
+        if(models.empty()) throw "array is empty";
+        json_value document_json = json_value::array();
+        for(const auto& elem : models){
+            json_value json = json_value(elem);
+            document_json.push_back(json);
+        }
+        return document_json.dump();
+    } catch(const nlohmann::detail::exception& e) {
+        printf("model: to_string_array error: %s\n", e.what());
         return {};
     }
 }
@@ -59,7 +75,7 @@ bool inline from_string_with_id(T& model, const std::string& json_str){
         if(value["_id"]["$oid"].is_string()) traits::set_id(model, value["_id"]["$oid"]);
         return true;
     } catch(const nlohmann::detail::exception& e) {
-        printf("from_string_with_id<%s> error: %s\n", typeid(T).name(), e.what());
+        printf("from_string_with_id error: %s\n", e.what());
         return false;
     }
     return true;
@@ -69,7 +85,9 @@ bool inline from_json_with_id(T& model, const json_value& json){
     if(json.empty()) return false;
     try {
         model = json;
-        if(json["_id"]["$oid"].is_string()) traits::set_id(model, json["_id"]["$oid"]);
+        if(json.contains("id")){
+            traits::set_id(model, json["id"]);
+        }
         return true;
     } catch(const nlohmann::detail::exception& e) {
         printf("from_json_with_id error: %s\n", e.what());

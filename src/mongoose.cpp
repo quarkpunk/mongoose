@@ -80,6 +80,31 @@ std::string mongoose::base::insert(mongo_collection& collection, const json_valu
     return result ? result->inserted_id().get_oid().value.to_string() : std::string{};
 }
 
+bool mongoose::base::insert_many(mongo_collection& collection, const std::vector<json_value>& datas){
+    std::vector<bsoncxx::document::value> documents;
+    for(const auto& val : datas){
+        documents.push_back(to_bson(val));
+    }
+    auto result = collection.insert_many(documents);
+    return result && result->result().inserted_count() > 0;
+}
+
+bool mongoose::base::insert_many(mongo_collection& collection, const std::vector<json_value>& datas, std::vector<std::string>& return_oids){
+    std::vector<bsoncxx::document::value> documents;
+    for(const auto& val : datas){
+        documents.push_back(to_bson(val));
+    }
+    auto result = collection.insert_many(documents);
+    if(result && result->result().inserted_count() > 0){
+        for(const auto& val : result->inserted_ids()){
+            return_oids.push_back(val.second.get_oid().value.to_string());
+        }
+        return true;
+    }
+    return false;
+}
+
+
 bool mongoose::base::insert_id(mongo_collection& collection, const std::string& id, const json_value& doc){
     auto query = document{} << "_id"  << bsoncxx::oid{id}
     << bsoncxx::builder::stream::concatenate(to_bson(doc))
@@ -127,89 +152,26 @@ bool mongoose::base::remove_id(mongo_collection& collection, const std::string& 
 
 // bulk methods
 
-bool mongoose::base::insert_bulk(mongo_collection& collection, const std::vector<json_value>& documents_json){
-    std::vector<bsoncxx::document::value> documents;
-    for(const auto& doc_json : documents_json){
-        documents.push_back(to_bson(doc_json));
+void mongoose::base::bulk_insert_append(bulk_write& bulk, const std::vector<json_value>& inserts){
+    for(const auto& json_data : inserts){
+        bulk.append(mongocxx::model::insert_one(to_bson(json_data).view()));
     }
-    if(documents.empty()) return false;
-    auto result = collection.insert_many(documents);
-    return result && result.value().inserted_count() > 0;
 }
 
-bool mongoose::base::insert_bulk(mongo_collection& collection, const std::vector<json_value>& documents_json, std::vector<std::string>& return_oids){
-    std::vector<bsoncxx::document::value> documents;
-    for(const auto& doc_json : documents_json){
-        documents.push_back(to_bson(doc_json));
-    }
-    if(documents.empty()) return false;
-    auto result = collection.insert_many(documents);
-
-    if(result && result.value().inserted_count() == 0){
-        return false;
-    }
-    std::vector<std::string> result_ids;
-    for(const auto& pair : result.value().inserted_ids()) {
-        const bsoncxx::v_noabi::document::element id_value = pair.second;
-        if (id_value.type() == bsoncxx::type::k_oid) {
-            result_ids.push_back(id_value.get_oid().value.to_string());
-        }
-        else if (id_value.type() == bsoncxx::type::k_utf8) {
-            result_ids.push_back(id_value.get_string().value.to_string());
-        }
-    }
-    return true;
-}
-
-bool mongoose::base::update_bulk(mongo_collection& collection, const std::vector<std::string>& ids, const json_value& document_json){
-    std::vector<mongocxx::model::update_many> updates;
-    auto update_doc = to_bson(document_json);
-    for(const auto& id : ids){
-        auto filter = document{} << "_id" << id << finalize;
-        updates.emplace_back(filter.view(), update_doc.view());
-    }
-    if(updates.empty()) return false;
-    auto result = collection.bulk_write(updates);
-    return result && result.value().modified_count() > 0;
-}
-
-bool mongoose::base::update_bulk(mongo_collection& collection, const std::vector<std::pair<std::string, json_value>>& updates){
-    std::vector<mongocxx::model::update_one> bulk_updates;
-    for(const auto& [id, json_data] : updates) {
+void mongoose::base::bulk_update_append(bulk_write& bulk, const std::vector<std::pair<std::string, json_value>>& updates){
+    for(const auto& [id, json_data] : updates){
+        if(id.empty()) continue;
         auto filter = document{} << "_id" << bsoncxx::oid(id) << finalize;
         auto update = document{} << "$set" << to_bson(json_data) << finalize;
-        bulk_updates.emplace_back(filter.view(), update.view());
+        bulk.append(mongocxx::model::update_one(filter.view(), update.view()));
     }
-    if(bulk_updates.empty()) {
-        return false;
-    }
-    auto result = collection.bulk_write(bulk_updates);
-    return result && result->modified_count() > 0;
 }
 
-bool mongoose::base::update_bulk_raw(mongo_collection& collection, const std::vector<std::pair<std::string, json_value>>& updates){
-    std::vector<mongocxx::model::update_one> bulk_updates;
-    for(const auto& [id, json_data] : updates) {
+void mongoose::base::bulk_remove_append(bulk_write& bulk, const std::vector<std::string>& removes_id){
+    for(const auto& id : removes_id){
         auto filter = document{} << "_id" << bsoncxx::oid(id) << finalize;
-        bulk_updates.emplace_back(filter.view(), to_bson(json_data).view());
+        bulk.append(mongocxx::model::delete_one(filter.view()));
     }
-    if(bulk_updates.empty()) {
-        return false;
-    }
-    auto result = collection.bulk_write(bulk_updates);
-    return result && result->modified_count() > 0;
-}
-
-bool mongoose::base::remove_bulk(mongo_collection& collection, const std::vector<std::string>& ids){
-    if(ids.empty()) return false;
-    auto filter = document{};
-    filter << "_id" << open_document << "$in" << [&ids](auto&& arr) {
-        for (const auto& id : ids) {
-            arr << id;
-        }
-    } << close_document;
-    auto result = collection.delete_many(filter.view());
-    return result && result.value().deleted_count() > 0;
 }
 
 // session methods
@@ -253,6 +215,30 @@ std::optional<json_value> mongoose::session::find_by_id(mongo_session& session, 
 std::string mongoose::session::insert(mongo_session& session, mongo_collection& collection, const json_value& document) {
     auto result = collection.insert_one(session, to_bson(document).view());
     return result ? result->inserted_id().get_oid().value.to_string() : std::string{};
+}
+
+bool mongoose::session::insert_many(mongo_session& session, mongo_collection& collection, const std::vector<json_value>& datas){
+    std::vector<bsoncxx::document::value> documents;
+    for(const auto& val : datas){
+        documents.push_back(to_bson(val));
+    }
+    auto result = collection.insert_many(session, documents);
+    return result && result->result().inserted_count() > 0;
+}
+
+bool mongoose::session::insert_many(mongo_session& session, mongo_collection& collection, const std::vector<json_value>& datas, std::vector<std::string>& return_oids){
+    std::vector<bsoncxx::document::value> documents;
+    for(const auto& val : datas){
+        documents.push_back(to_bson(val));
+    }
+    auto result = collection.insert_many(session, documents);
+    if(result && result->result().inserted_count() > 0){
+        for(const auto& val : result->inserted_ids()){
+            return_oids.push_back(val.second.get_oid().value.to_string());
+        }
+        return true;
+    }
+    return false;
 }
 
 bool mongoose::session::insert_id(mongo_session& session, mongo_collection& collection, const std::string& id, const json_value& doc){

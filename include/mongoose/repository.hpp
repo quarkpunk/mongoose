@@ -71,11 +71,6 @@ public:
         mongo_collection coll = conn->database(database).collection(collection);
         return mongoose::update_id(coll, id, data);
     }
-    bool remove_many(const std::vector<std::string>& ids){
-        auto conn = mongo->pool.acquire();
-        mongo_collection coll = conn->database(database).collection(collection);
-        return mongoose::remove_many(coll, ids);
-    }
     bool remove(const std::string& id){
         auto conn = mongo->pool.acquire();
         mongo_collection coll = conn->database(database).collection(collection);

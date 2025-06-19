@@ -1,6 +1,7 @@
 #ifndef QUARKPUNK_MONGOOSE_HPP
 #define QUARKPUNK_MONGOOSE_HPP
 
+#include<mongocxx/bulk_write.hpp>
 #include<mongocxx/collection.hpp>
 #include<nlohmann/json.hpp>
 #include<vector>
@@ -9,6 +10,7 @@
 using json_value = nlohmann::json;
 using mongo_collection = mongocxx::collection;
 using mongo_session = mongocxx::v_noabi::client_session;
+using bulk_write = mongocxx::v_noabi::bulk_write;
 
 // default methods
 namespace mongoose::base{
@@ -18,6 +20,8 @@ namespace mongoose::base{
     std::vector<json_value> find_all(mongo_collection& collection, int skip = 0, int limit = 20);
     std::optional<json_value> find_by_id(mongo_collection& collection, const std::string& id);
     std::string insert(mongo_collection& collection, const json_value& document);
+    bool insert_many(mongo_collection& collection, const std::vector<json_value>& datas);
+    bool insert_many(mongo_collection& collection, const std::vector<json_value>& datas, std::vector<std::string>& return_oids);
     bool insert_id(mongo_collection& collection, const std::string& id, const json_value& document);
     bool update(mongo_collection& collection, const json_value& filter, const json_value& update_data, bool upsert = false);
     bool update_id(mongo_collection& collection, const std::string& id, const json_value& update_data, bool upsert = false);
@@ -28,12 +32,9 @@ namespace mongoose::base{
 
 // bulk methods
 namespace mongoose::base{
-    bool insert_bulk(mongo_collection& collection, const std::vector<json_value>& documents_json);
-    bool insert_bulk(mongo_collection& collection, const std::vector<json_value>& documents_json, std::vector<std::string>& return_oids);
-    bool update_bulk(mongo_collection& collection, const std::vector<std::string>& ids, const json_value& document_json);
-    bool update_bulk(mongo_collection& collection, const std::vector<std::pair<std::string, json_value>>& values);
-    bool remove_bulk(mongo_collection& collection, const std::vector<std::string>& ids);
-    bool update_bulk_raw(mongo_collection& collection, const std::vector<std::pair<std::string, json_value>>& updates);
+    void bulk_insert_append(bulk_write& bulk, const std::vector<json_value>& inserts);
+    void bulk_update_append(bulk_write& bulk, const std::vector<std::pair<std::string, json_value>>& updates);
+    void bulk_remove_append(bulk_write& bulk, const std::vector<std::string>& removes_id);
 }
 
 // session methods
@@ -43,6 +44,8 @@ namespace mongoose::session{
     std::vector<json_value> find_all(mongo_session& session, mongo_collection& collection, int skip = 0, int limit = 20);
     std::optional<json_value> find_by_id(mongo_session& session, mongo_collection& collection, const std::string& id);
     std::string insert(mongo_session& session, mongo_collection& collection, const json_value& document);
+    bool insert_many(mongo_session& session, mongo_collection& collection, const std::vector<json_value>& datas);
+    bool insert_many(mongo_session& session, mongo_collection& collection, const std::vector<json_value>& datas, std::vector<std::string>& return_oids);
     bool insert_id(mongo_session& session, mongo_collection& collection, const std::string& id, const json_value& document);
     bool update(mongo_session& session, mongo_collection& collection, const json_value& filter, const json_value& update_data, bool upsert = false);
     bool update_id(mongo_session& session, mongo_collection& collection, const std::string& id, const json_value& update_data, bool upsert = false);

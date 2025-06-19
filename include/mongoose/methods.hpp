@@ -40,6 +40,7 @@ bool find_all(mongo_collection& coll, std::vector<T>& result, int skip = 0, int 
 
 template <typename T>
 bool find_all(mongo_collection& coll, std::vector<std::string>& ids, std::vector<T>& result){
+    if(ids.empty()) return false;
     std::vector<json_value> array = mongoose::base::find_all(coll, ids, 0, ids.size());
     std::vector<T> values;
     for(auto&& elem : array){
@@ -81,26 +82,67 @@ bool insert(mongo_collection& coll, const T& data, std::string& out_id){
 }
 
 template <typename T>
-bool insert_many(mongo_collection& coll, const std::vector<T>& datas){
-    return mongoose::base::insert_bulk(coll, datas);
-}
-
-template <typename T>
 bool update_id(mongo_collection& coll, const std::string& id, T& data){
     return mongoose::base::update_id(coll, id, data);
-}
-
-template <typename T>
-bool update_many(mongo_collection& coll, const std::vector<std::pair<std::string, T>>& values){
-    return mongoose::base::update_bulk(coll, values);
 }
 
 bool remove_id(mongo_collection& coll, const std::string& id){
     return mongoose::base::remove_id(coll, id);
 }
 
-bool remove_many(mongo_collection& coll, const std::vector<std::string>& ids){
-    return mongoose::base::remove_bulk(coll, ids);
+template <typename T>
+void bulk_insert_append(bulk_write& bulk, const std::vector<T>& inserts){
+    std::vector<json_value> values;
+    for(const auto& value : inserts){
+        values.push_back(value);
+    }
+    mongoose::base::bulk_insert_append(bulk, values);
+}
+
+template <typename T>
+void bulk_update_append(bulk_write& bulk, const std::vector<T>& updates){
+    std::vector<std::pair<std::string, json_value>> datas;
+    for(const auto& value : updates){
+        auto id = mongoose::traits::get_id(value);
+        if(!id) continue;
+        std::pair<std::string, json_value> value_pair = {id.value(), value};
+        datas.push_back(value_pair);
+    }
+    mongoose::base::bulk_update_append(bulk, datas);
+}
+
+void bulk_remove_append(bulk_write& bulk, const std::vector<std::string>& removes_id){
+    mongoose::base::bulk_remove_append(bulk, removes_id);
+}
+
+template <typename T>
+bool insert_many(mongo_collection& coll, const std::vector<T>& datas){
+    if(datas.empty()) return false;
+    std::vector<json_value> values;
+    for(const auto& value : datas){
+        values.push_back(value);
+    }
+    return mongoose::base::insert_many(coll, values);
+}
+
+template <typename T>
+bool insert_many(mongo_collection& coll, const std::vector<T>& datas, std::vector<std::string>& return_oids){
+    if(datas.empty()) return false;
+    std::vector<json_value> values;
+    for(const auto& value : datas){
+        values.push_back(value);
+    }
+    return mongoose::base::insert_many(coll, values, return_oids);
+}
+
+template <typename T>
+bool insert_many(mongo_session& session, mongo_collection& coll, const std::vector<T>& datas, std::vector<std::string>& return_oids){
+    if(datas.empty()) return false;
+    std::vector<json_value> values;
+    for(const auto& value : datas){
+        values.push_back(value);
+    }
+    return mongoose::session::insert_many(session, coll, values, return_oids);
 }
 
 // session methods
@@ -173,7 +215,7 @@ bool remove_id(mongo_session& session, mongo_collection& coll, const std::string
 
 bool json_find_all(mongo_collection& coll, json_value& result_data, const json_value& filter, int skip = 0, int max = 10){
     std::vector<json_value> array = mongoose::base::find_all(coll, filter, skip, max);
-    json_value values;
+    json_value values = json_value::array();
     for(auto&& elem : array){
         mongoose::model::from_json_mongo_id(elem);
         values.push_back(elem);
@@ -184,7 +226,7 @@ bool json_find_all(mongo_collection& coll, json_value& result_data, const json_v
 
 bool json_find_all(mongo_collection& coll, json_value& result_data, int skip = 0, int max = 10){
     std::vector<json_value> array = mongoose::base::find_all(coll, skip, max);
-    json_value values;
+    json_value values = json_value::array();
     for(auto&& elem : array){
         mongoose::model::from_json_mongo_id(elem);
         values.push_back(elem);

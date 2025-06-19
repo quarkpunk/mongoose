@@ -18,17 +18,23 @@ struct has_string_id_field<T, std::void_t<decltype(std::declval<T>().id)>>
 
 template <typename T>
 std::optional<std::string> get_id(const T& object){
-    if constexpr (has_string_id_field<T>::value){
-        return object.id;
+    try {
+        if constexpr (has_string_id_field<T>::value){
+            return object.id;
+        }
+        return std::nullopt;
     }
-    return std::nullopt;
+    catch(const std::exception& e) { return std::nullopt; }
 }
 
 template <typename T>
 void set_id(T& object, const std::string& id){
-    if constexpr (has_string_id_field<T>::value){
-        object.id = id;
+    try{
+        if constexpr (has_string_id_field<T>::value){
+            object.id = id;
+        }
     }
+    catch(const std::exception& e) { return; }
 }
 
 template <typename T>
