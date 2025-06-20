@@ -2,6 +2,7 @@
 #include<mongoose/model.hpp>
 #include<bsoncxx/builder/stream/document.hpp>
 #include<mongocxx/client.hpp>
+#include<bsoncxx/validate.hpp>
 #include<bsoncxx/oid.hpp>
 #include<bsoncxx/json.hpp>
 
@@ -18,6 +19,17 @@ static inline bsoncxx::document::value to_bson(const json_value& j){
 
 static inline json_value to_json(const bsoncxx::document::view& view){
     return json_value::parse(bsoncxx::to_json(view));
+}
+
+bool mongoose::utils::objectid_is_valid(const std::string& id){
+    if(id.empty()) return false;
+    return id.length() == 24;
+}
+
+bool mongoose::utils::objectid_is_valid_strict(const std::string& id){
+    if(id.empty()) return false;
+    try { bsoncxx::oid oid{id}; return true; }
+    catch (const std::exception& e) { return false; }
 }
 
 // default methods

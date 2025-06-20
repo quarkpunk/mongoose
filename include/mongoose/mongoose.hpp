@@ -12,6 +12,12 @@ using mongo_collection = mongocxx::collection;
 using mongo_session = mongocxx::v_noabi::client_session;
 using bulk_write = mongocxx::v_noabi::bulk_write;
 
+// utils methods
+namespace mongoose::utils{
+    bool objectid_is_valid(const std::string& id);
+    bool objectid_is_valid_strict(const std::string& id);
+}
+
 // default methods
 namespace mongoose::base{
     std::optional<json_value> find_one(mongo_collection& collection, const json_value& filter);
