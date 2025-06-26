@@ -1,15 +1,10 @@
 #include<mongoose/mongoose.hpp>
 #include<mongoose/model.hpp>
-#include<bsoncxx/builder/stream/document.hpp>
+#include<mongoose/document.hpp>
 #include<mongocxx/client.hpp>
 #include<bsoncxx/validate.hpp>
 #include<bsoncxx/oid.hpp>
 #include<bsoncxx/json.hpp>
-
-using bsoncxx::builder::stream::document;
-using bsoncxx::builder::stream::open_document;
-using bsoncxx::builder::stream::close_document;
-using bsoncxx::builder::stream::finalize;
 
 // utils methods
 
