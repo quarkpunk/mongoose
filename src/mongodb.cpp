@@ -35,8 +35,7 @@ void mongodb::ping() {
 
 bool mongodb::index_create(const std::string& database, const std::string& collection, const index_value& index_def){
     try {
-        auto conn = pool.acquire();
-        auto coll = (*conn)[database][collection];
+
         auto keys = document{};
         for (const auto& [field, order] : index_def.fields){
             if (order == 0) {
@@ -61,6 +60,8 @@ bool mongodb::index_create(const std::string& database, const std::string& colle
         if (index_def.default_language){
             options << "default_language" << *index_def.default_language;
         }
+        auto conn = pool.acquire();
+        auto coll = (*conn)[database][collection];
         auto result = coll.create_index(keys.extract(),options.extract());
         return !result.view().empty();
     } catch (const std::exception& e) {

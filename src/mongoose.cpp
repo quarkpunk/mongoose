@@ -6,7 +6,7 @@
 #include<bsoncxx/oid.hpp>
 #include<bsoncxx/json.hpp>
 
-// utils methods
+// local methods
 
 static inline bsoncxx::document::value to_bson(const json_value& j){
     return bsoncxx::from_json(j.dump());
@@ -14,6 +14,12 @@ static inline bsoncxx::document::value to_bson(const json_value& j){
 
 static inline json_value to_json(const bsoncxx::document::view& view){
     return json_value::parse(bsoncxx::to_json(view));
+}
+
+// utils methods
+
+view_or_value mongoose::utils::to_bson(const json_value& value){
+    return bsoncxx::from_json(value.dump());
 }
 
 bool mongoose::utils::objectid_is_valid(const std::string& id){
@@ -67,7 +73,7 @@ std::vector<json_value> mongoose::base::find_all(mongo_collection& collection, i
     return results;
 }
 
-std::vector<json_value> mongoose::base::find_all(mongo_collection& collection, std::vector<std::string>& ids, int skip, int limit){
+std::vector<json_value> mongoose::base::find_all(mongo_collection& collection, const std::vector<std::string>& ids, int skip, int limit){
     auto ids_array = bsoncxx::builder::basic::array{};
     for(const auto& id : ids){
         ids_array.append(bsoncxx::oid(id));
@@ -197,7 +203,7 @@ std::vector<json_value> mongoose::base::find_all(mongo_session& session, mongo_c
     return results;
 }
 
-std::vector<json_value> mongoose::base::find_all(mongo_session& session, mongo_collection& collection, std::vector<std::string>& ids, int skip, int limit){
+std::vector<json_value> mongoose::base::find_all(mongo_session& session, mongo_collection& collection, const std::vector<std::string>& ids, int skip, int limit){
     auto ids_array = bsoncxx::builder::basic::array{};
     for(const auto& id : ids){
         ids_array.append(bsoncxx::oid(id));
@@ -313,8 +319,18 @@ bool mongoose::raw::update(mongo_collection& collection, const view_or_value& fi
     return result && (result->modified_count() > 0 || result->matched_count() > 0);
 }
 
+bool mongoose::raw::update_many(mongo_collection& collection, const view_or_value& filter, const view_or_value& value, const options_update& option_update){
+    auto result = collection.update_one(filter.view(), value, option_update);
+    return result && (result->modified_count() > 0 || result->matched_count() > 0);
+}
+
 bool mongoose::raw::remove(mongo_collection& collection, const view_or_value& filter, const options_delete& options_delete){
     auto result = collection.delete_one(filter, options_delete);
+    return result && result->deleted_count() > 0;
+}
+
+bool mongoose::raw::remove_many(mongo_collection& collection, const view_or_value& filter, const options_delete& options_delete){
+    auto result = collection.delete_many(filter, options_delete);
     return result && result->deleted_count() > 0;
 }
 
@@ -362,8 +378,18 @@ bool mongoose::raw::update(mongo_session& session, mongo_collection& collection,
     return result && (result->modified_count() > 0 || result->matched_count() > 0);
 }
 
+bool mongoose::raw::update_many(mongo_session& session, mongo_collection& collection, const view_or_value& filter, const view_or_value& value, const options_update& option_update){
+    auto result = collection.update_one(session, filter.view(), value, option_update);
+    return result && (result->modified_count() > 0 || result->matched_count() > 0);
+}
+
 bool mongoose::raw::remove(mongo_session& session, mongo_collection& collection, const view_or_value& filter, const options_delete& options_delete){
     auto result = collection.delete_one(session, filter, options_delete);
+    return result && result->deleted_count() > 0;
+}
+
+bool mongoose::raw::remove_many(mongo_session& session, mongo_collection& collection, const view_or_value& filter, const options_delete& options_delete){
+    auto result = collection.delete_many(session, filter, options_delete);
     return result && result->deleted_count() > 0;
 }
 

@@ -52,7 +52,7 @@ bool find_all(std::vector<T>& results, mongo_collection& coll, int skip = 0, int
 }
 
 template <typename T>
-bool find_all(std::vector<T>& results, mongo_collection& coll, std::vector<std::string>& ids){
+bool find_all(std::vector<T>& results, mongo_collection& coll, const std::vector<std::string>& ids){
     if(ids.empty()) return false;
     std::vector<json_value> array = mongoose::base::find_all(coll, ids, 0, ids.size());
     std::vector<T> values;
