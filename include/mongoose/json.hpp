@@ -11,7 +11,8 @@
 
 using json_value = nlohmann::json;
 
-const json_value _mongoose_json_clean(const json_value& j);
+// clear json for frontend view
+const inline json_value _mongoose_json_clean(const json_value& j);
 
 namespace mongoose{
 namespace json{
@@ -59,24 +60,21 @@ const inline bool from_bson(T& model, const bsoncxx::document::value& bson){
 
 }}
 
-// clear json for frontend view
-const json_value _mongoose_json_clean(const json_value& j) {
+const inline json_value _mongoose_json_clean(const json_value& j){
     if (j.is_object()) {
+        // check special bson types
+        if (j.size() == 1) {
+            if (j.contains("$oid")) {
+                return j["$oid"].get<std::string>();
+            } else if (j.contains("$date")) {
+                return j["$date"];
+            }
+        }
+        // if not special type
+        // process all fields recursively
         json_value cleaned;
         for (auto& [key, value] : j.items()) {
-            if (value.is_object() && value.size() == 1) {
-                if (value.contains("$oid")) {
-                    cleaned[key] = value["$oid"];
-                }
-                else if (value.contains("$date")) {
-                    cleaned[key] = value["$date"];
-                }
-                else {
-                    cleaned[key] = _mongoose_json_clean(value);
-                }
-            } else {
-                cleaned[key] = _mongoose_json_clean(value);
-            }
+            cleaned[key] = _mongoose_json_clean(value);
         }
         return cleaned;
     } else if (j.is_array()) {

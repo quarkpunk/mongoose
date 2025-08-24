@@ -76,6 +76,12 @@ struct adl_serializer<mongoose::type::oid> {
         j = {{ "$oid", oid.to_string()}};
     }
     static void from_json(const json& j, mongoose::type::oid& oid) {
+        // from raw string
+        if(j.is_string()){
+            oid = mongoose::type::oid{j.get<std::string>()};
+            return;
+        }
+        // from mongodb
         if(!j.is_object() || j.is_null()) throw json::type_error::create(302, "Invalid OID format", &j);
         oid = mongoose::type::oid{j.at("$oid").get<std::string>()};
     }

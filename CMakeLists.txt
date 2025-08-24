@@ -25,12 +25,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     nlohmann_json::nlohmann_json
 )
 
-# precompile
-target_precompile_headers(${PROJECT_NAME} PUBLIC
-    <string>
-    <nlohmann/json.hpp>
-)
-
 # tests
 if(MONGOOSE_BUILD_TESTS)
     message("++ mongoose tests")

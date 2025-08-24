@@ -15,8 +15,8 @@ private:
 public:
     date() : time_(std::chrono::system_clock::now()) {}
     explicit date(std::chrono::system_clock::time_point tp) : time_(tp) {}
-    explicit date(const std::string& iso_str);
     date(const char* str){ *this = from_string(str); }
+    date(const std::string& iso_str) : time_(from_string(iso_str).time_) {}
     date(int64_t milliseconds) : time_(std::chrono::system_clock::time_point(std::chrono::milliseconds(milliseconds))) {}
 
     std::chrono::system_clock::time_point time() const { return time_; }
@@ -105,19 +105,22 @@ public:
     }
 };
 
-date::date(const std::string& iso_str) : time_(from_string(iso_str).time_) {}
-
 }}
 
 namespace nlohmann {
 
-// mongoose::type::date
 template <>
 struct adl_serializer<mongoose::type::date> {
     static void to_json(json& j, const mongoose::type::date& date){
         j = {{ "$date", date.to_string() }};
     }
     static void from_json(const json& j, mongoose::type::date& date){
+        // from raw string
+        if(j.is_string()){
+            date = mongoose::type::date{j.get<int64_t>()};
+            return;
+        }
+        // from mongodb
         if(!j.is_object() || j.is_null()) throw json::type_error::create(302, "Invalid Date format", &j);
         date = mongoose::type::date{j.at("$date").get<int64_t>()};
     }
