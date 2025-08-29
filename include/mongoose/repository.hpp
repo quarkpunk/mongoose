@@ -12,10 +12,11 @@ public:
         const std::string& collection)
         : mongodb(mongo), database(database), collection(collection){}
     virtual ~repository() = default;
-protected:
-    mongoose::mongodb& mongodb;
+public:
     const std::string database;
     const std::string collection;
+protected:
+    mongoose::mongodb& mongodb;
 };
 
 }

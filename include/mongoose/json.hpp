@@ -52,7 +52,17 @@ template<typename T>
 const inline bool from_bson(T& model, const bsoncxx::document::value& bson){
     try { model = json_value::parse(bsoncxx::to_json(bson)); return true; }
     catch(const nlohmann::detail::exception& e) {
-        printf("from_string error -> %s\n", e.what());
+        printf("from_bson value error -> %s\n", e.what());
+        return false;
+    }
+    return true;
+}
+
+template<typename T>
+const inline bool from_bson(T& model, const bsoncxx::document::view& bson){
+    try { model = json_value::parse(bsoncxx::to_json(bson)); return true; }
+    catch(const nlohmann::detail::exception& e) {
+        printf("from_bson view error -> %s\n", e.what());
         return false;
     }
     return true;

@@ -20,10 +20,12 @@ public:
     date(int64_t milliseconds) : time_(std::chrono::system_clock::time_point(std::chrono::milliseconds(milliseconds))) {}
 
     std::chrono::system_clock::time_point time() const { return time_; }
+
     int64_t to_milliseconds() const {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
             time_.time_since_epoch()).count();
     }
+
     std::chrono::system_clock::time_point to_timepoint() const {
         return time_;
     }
@@ -57,14 +59,15 @@ public:
         auto time = std::chrono::system_clock::to_time_t(time_);
         std::tm tm = *std::gmtime(&time);
         std::ostringstream oss;
-        oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S.000Z");
+        oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
         return oss.str();
     }
+    
     // string (ISO 8601)
     static date from_string(const std::string& iso_str) {
         std::tm tm = {};
         std::istringstream iss(iso_str);
-        iss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S.000Z");
+        iss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
         if (iss.fail()) {
             throw std::runtime_error("Failed to parse date string: " + iso_str);
         }
@@ -115,9 +118,14 @@ struct adl_serializer<mongoose::type::date> {
         j = {{ "$date", date.to_string() }};
     }
     static void from_json(const json& j, mongoose::type::date& date){
-        // from raw string
-        if(j.is_string()){
+        // from int (timestamp)
+        if(j.is_number()){
             date = mongoose::type::date{j.get<int64_t>()};
+            return;
+        }
+        // from string
+        if(j.is_string()){
+            date = mongoose::type::date::from_string(j.get<std::string>());
             return;
         }
         // from mongodb

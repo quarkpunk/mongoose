@@ -73,6 +73,11 @@ namespace nlohmann {
 template <>
 struct adl_serializer<mongoose::type::oid> {
     static void to_json(json& j, const mongoose::type::oid& oid) {
+        // if oid is empty
+        if(oid.empty()){
+            j = nullptr;
+            return;
+        }
         j = {{ "$oid", oid.to_string()}};
     }
     static void from_json(const json& j, mongoose::type::oid& oid) {
@@ -81,8 +86,13 @@ struct adl_serializer<mongoose::type::oid> {
             oid = mongoose::type::oid{j.get<std::string>()};
             return;
         }
+        // if null
+        if(j.is_null()){
+            oid = mongoose::type::oid{};
+        }
+        // from bson type
+        if(!j.is_object()) throw json::type_error::create(302, "Invalid OID format", &j);
         // from mongodb
-        if(!j.is_object() || j.is_null()) throw json::type_error::create(302, "Invalid OID format", &j);
         oid = mongoose::type::oid{j.at("$oid").get<std::string>()};
     }
 };

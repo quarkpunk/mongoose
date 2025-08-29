@@ -5,10 +5,15 @@
 #include<mongoose/repository.hpp>
 #include<mongoose/types/oid.hpp>
 #include<mongoose/json.hpp>
+#include<bsoncxx/builder/basic/kvp.hpp>
 #include<bsoncxx/builder/stream/document.hpp>
 
+using bsoncxx::builder::basic::kvp;
 using bsoncxx::builder::stream::document;
 using bsoncxx::builder::stream::finalize;
+using bsoncxx::builder::basic::make_document;
+using bsoncxx::builder::stream::open_document;
+using bsoncxx::builder::stream::close_document;
 
 namespace mongoose{
 
@@ -18,14 +23,14 @@ public:
     repository_crud(mongoose::mongodb& mongo, const std::string& database, const std::string& collection)
     : repository(mongo, database, collection) {}
 public:
-    virtual std::optional<std::string> create_one(const T& model){
+    virtual std::optional<std::string> insert_one(const T& model){
         auto conn = mongodb.pool.acquire();
         auto coll = conn->database(database).collection(collection);
         auto result = coll.insert_one(mongoose::json::to_bson_without_oid(model).view());
         if(result->result().inserted_count() == 0) return std::nullopt;
         return std::make_optional(result->inserted_id().get_oid().value.to_string());
     };
-    virtual bool create_one(const std::string& oid, const T& model){
+    virtual bool insert_one(const std::string& oid, const T& model){
         auto conn = mongodb.pool.acquire();
         auto coll = conn->database(database).collection(collection);
         auto doc = document{}
@@ -35,7 +40,7 @@ public:
         auto result = coll.insert_one(doc.view());
         return result->result().inserted_count() == 1;
     };
-    virtual std::optional<T> find_by_id(const std::string& oid){
+    virtual std::optional<T> find_one_id(const std::string& oid){
         auto conn = mongodb.pool.acquire();
         auto coll = conn->database(database).collection(collection);
         auto filter = document{} << "_id" << bsoncxx::oid{oid} << finalize;
