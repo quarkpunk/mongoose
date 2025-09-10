@@ -21,7 +21,7 @@ public:
 
     std::chrono::system_clock::time_point time() const { return time_; }
 
-    int64_t to_milliseconds() const {
+    int64_t to_timestamp() const {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
             time_.time_since_epoch()).count();
     }
@@ -56,23 +56,47 @@ public:
     
     // string (ISO 8601)
     std::string to_string() const {
-        auto time = std::chrono::system_clock::to_time_t(time_);
+        auto time_point = time_;
+        auto time = std::chrono::system_clock::to_time_t(time_point);
         std::tm tm = *std::gmtime(&time);
+        
+        auto since_epoch = time_point.time_since_epoch();
+        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(since_epoch);
+        auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(since_epoch - seconds);
+        
         std::ostringstream oss;
-        oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
+        oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S");
+        oss << "." << std::setfill('0') << std::setw(3) << milliseconds.count() << "Z";
         return oss.str();
     }
     
     // string (ISO 8601)
     static date from_string(const std::string& iso_str) {
         std::tm tm = {};
+        int milliseconds = 0;
         std::istringstream iss(iso_str);
-        iss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
+
+        char delimiter;
+        iss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
         if (iss.fail()) {
             throw std::runtime_error("Failed to parse date string: " + iso_str);
         }
+
+        // try parse milliseconds
+        if (iss.peek() == '.') {
+            iss >> delimiter;
+            iss >> milliseconds;
+            // if there are less than 3 digits, fill zeros
+            if (milliseconds < 10) milliseconds *= 100;
+            else if (milliseconds < 100) milliseconds *= 10;
+        }
+
         auto time = std::mktime(&tm);
-        return date(std::chrono::system_clock::from_time_t(time));
+        auto time_point = std::chrono::system_clock::from_time_t(time);
+
+        // add milliseconds
+        time_point += std::chrono::milliseconds(milliseconds);
+        return date(time_point);
     }
 
     date add_days(int days) const {
@@ -115,7 +139,7 @@ namespace nlohmann {
 template <>
 struct adl_serializer<mongoose::type::date> {
     static void to_json(json& j, const mongoose::type::date& date){
-        j = {{ "$date", date.to_string() }};
+        j = {{ "$date", date.to_timestamp() }};
     }
     static void from_json(const json& j, mongoose::type::date& date){
         // from int (timestamp)
