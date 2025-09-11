@@ -68,6 +68,14 @@ const inline bool from_bson(T& model, const bsoncxx::document::view& bson){
     return true;
 }
 
+json_value inline clear_bson(const json_value& model){
+    try { return _mongoose_json_clean(model).dump(); }
+    catch(const nlohmann::detail::exception& e) {
+        printf("clear_bson error -> %s\n", e.what());
+        return {};
+    }
+}
+
 }}
 
 const inline json_value _mongoose_json_clean(const json_value& j){

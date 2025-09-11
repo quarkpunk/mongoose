@@ -51,13 +51,33 @@ public:
         ? std::make_optional<T>(value_new)
         : std::nullopt;
     };
+    virtual std::optional<std::vector<T>> find_all(int skip = 0, int limit = 100){
+        auto conn = mongodb.pool.acquire();
+        auto coll = conn->database(database).collection(collection);
+        mongocxx::options::find find_options;
+        find_options.skip(skip);
+        find_options.limit(limit);
+        auto cursor = coll.find({}, find_options);
+        if(cursor.begin() == cursor.end()) return std::nullopt;
+        std::vector<T> values;
+        for(auto&& doc : cursor){
+            T value;
+            if(!mongoose::json::from_bson(value, doc)){
+                continue;
+            }
+            values.push_back(value);
+        }
+        return !values.empty()
+        ? std::make_optional(values)
+        : std::nullopt;
+    };
     virtual bool update_one(const std::string& oid, const T& model){
         auto conn = mongodb.pool.acquire();
         auto coll = conn->database(database).collection(collection);
         auto filter = document{} << "_id" << bsoncxx::oid{oid} << finalize;
         auto doc = document{} << "$set" << mongoose::json::to_bson(model) << finalize;
         auto result = coll.update_one(filter.view(), doc.view());
-        return result->modified_count() == 1 || result->upserted_count() == 1;
+        return result->modified_count() == 1 || result->matched_count() == 1;
     };
     virtual bool delete_one(const std::string& oid){
         auto conn = mongodb.pool.acquire();
