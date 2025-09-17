@@ -3,17 +3,6 @@
 
 #include<optional>
 #include<mongoose/repository.hpp>
-#include<mongoose/types/oid.hpp>
-#include<mongoose/json.hpp>
-#include<bsoncxx/builder/basic/kvp.hpp>
-#include<bsoncxx/builder/stream/document.hpp>
-
-using bsoncxx::builder::basic::kvp;
-using bsoncxx::builder::stream::document;
-using bsoncxx::builder::stream::finalize;
-using bsoncxx::builder::basic::make_document;
-using bsoncxx::builder::stream::open_document;
-using bsoncxx::builder::stream::close_document;
 
 namespace mongoose{
 
