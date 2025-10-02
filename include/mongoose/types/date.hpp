@@ -1,6 +1,7 @@
 #ifndef QUARKPUNK_MONGOOSE_TYPE_DATE_HPP
 #define QUARKPUNK_MONGOOSE_TYPE_DATE_HPP
 
+#include<mongoose/logger.hpp>
 #include<nlohmann/json.hpp>
 #include<chrono>
 #include<string>
@@ -152,9 +153,13 @@ struct adl_serializer<mongoose::type::date> {
             date = mongoose::type::date::from_string(j.get<std::string>());
             return;
         }
-        // from mongodb
-        if(!j.is_object() || j.is_null()) throw json::type_error::create(302, "Invalid Date format", &j);
-        date = mongoose::type::date{j.at("$date").get<int64_t>()};
+        // not valid types
+        if(j.is_object()){
+            date = mongoose::type::date{j.at("$date").get<int64_t>()};
+            return;
+        }
+        // no value
+        mongoose::logger::log(mongoose::logger::WARN, "mongoose: invalid $date format");
     }
 };
 

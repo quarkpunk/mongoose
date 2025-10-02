@@ -1,6 +1,7 @@
 #ifndef QUARKPUNK_MONGOOSE_JSON_HPP
 #define QUARKPUNK_MONGOOSE_JSON_HPP
 
+#include<mongoose/logger.hpp>
 #include<bsoncxx/document/value.hpp>
 #include<bsoncxx/json.hpp>
 #include<nlohmann/json.hpp>
@@ -20,9 +21,13 @@ namespace json{
 template<typename T>
 bool inline from_string(T& model, const std::string& json_str){
     if(json_str.empty()) return false;
-    try { model = json_value::parse(json_str); return true; }
-    catch(const nlohmann::detail::exception& e) {
-        printf("from_string error -> %s\n", e.what());
+    try {
+        auto json = json_value::parse(json_str);
+        model = std::move<T>(json.get<T>());
+        return true;
+    }
+    catch(const nlohmann::detail::exception& e){
+        mongoose::logger::log(mongoose::logger::WARN, "from_string > %s", e.what());
         return false;
     }
     return true;
@@ -31,7 +36,7 @@ bool inline from_string(T& model, const std::string& json_str){
 const std::string inline to_string(const json_value& model){
     try { return _mongoose_json_clean(model).dump(); }
     catch(const nlohmann::detail::exception& e) {
-        printf("to_string error -> %s\n", e.what());
+        mongoose::logger::log(mongoose::logger::WARN, "to_string > %s", e.what());
         return {};
     }
 }
@@ -52,7 +57,7 @@ template<typename T>
 const inline bool from_bson(T& model, const bsoncxx::document::value& bson){
     try { model = json_value::parse(bsoncxx::to_json(bson)); return true; }
     catch(const nlohmann::detail::exception& e) {
-        printf("from_bson value error -> %s\n", e.what());
+        mongoose::logger::log(mongoose::logger::WARN, "from_bson > %s", e.what());
         return false;
     }
     return true;
@@ -62,7 +67,7 @@ template<typename T>
 const inline bool from_bson(T& model, const bsoncxx::document::view& bson){
     try { model = json_value::parse(bsoncxx::to_json(bson)); return true; }
     catch(const nlohmann::detail::exception& e) {
-        printf("from_bson view error -> %s\n", e.what());
+        mongoose::logger::log(mongoose::logger::WARN, "from_bson > %s", e.what());
         return false;
     }
     return true;
@@ -71,7 +76,7 @@ const inline bool from_bson(T& model, const bsoncxx::document::view& bson){
 json_value inline clear_bson(const json_value& model){
     try { return _mongoose_json_clean(model); }
     catch(const nlohmann::detail::exception& e) {
-        printf("clear_bson error -> %s\n", e.what());
+        mongoose::logger::log(mongoose::logger::WARN, "clear_bson > %s", e.what());
         return {};
     }
 }
