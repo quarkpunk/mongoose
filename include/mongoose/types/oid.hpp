@@ -8,7 +8,7 @@
 #include<iomanip>
 #include<cstring>
 
-namespace mongoose { namespace type {
+namespace mongoose::type {
 
 struct oid {
 private:
@@ -67,7 +67,7 @@ public:
     bool empty() const { return value_.empty(); }
 };
 
-}}
+}
 
 namespace nlohmann {
 
@@ -93,12 +93,12 @@ struct adl_serializer<mongoose::type::oid> {
             return;
         }
         // from bson object
-        if(j.is_object()){
+        if(j.is_object() && j.contains("$oid")){
             oid = mongoose::type::oid{j.at("$oid").get<std::string>()};
             return;
         }
         // no value
-        mongoose::logger::log(mongoose::logger::WARN, "mongoose: invalid $oid format");
+        mongoose::logger::log(mongoose::logger::WARN, "mongoose: invalid $oid type");
     }
 };
 

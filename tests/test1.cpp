@@ -1,7 +1,7 @@
-#include<mongoose/json.hpp>
+#include<mongoose/model.hpp>
 #include<mongoose/types/date.hpp>
 #include<mongoose/types/oid.hpp>
-#include<mongoose/types/location_point.hpp>
+#include<mongoose/types/geo/point.hpp>
 
 static void mongoose_type_date(){
     puts("🏷 test mongoose::type::date type");
@@ -27,11 +27,9 @@ static void mongoose_type_oid(){
 static void mongoose_type_geo(){
     puts("🏷 test mongoose::type::location_point type");
     puts("input location: -73.985417 | 40.748805");
-    mongoose::type::location_point location;
-    location.longitude = -73.985417;
-    location.latitude = 40.748805;
-    printf(" ├─ location (long|lati): %f/%f\n", location.longitude, location.latitude);
-    printf(" └─ location (json/string): %s\n", mongoose::json::to_string(location).c_str());
+    mongoose::type::geo::point location(-73.985417, 40.748805);
+    printf(" ├─ location (long|lati): %f/%f\n", location.get_longitude(), location.get_latitude());
+    printf(" └─ location (json/string): %s\n", mongoose::model::to_string(location).c_str());
 }
 
 int main(int argc, char const *argv[]){

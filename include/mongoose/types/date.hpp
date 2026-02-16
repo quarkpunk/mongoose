@@ -8,7 +8,7 @@
 #include<iomanip>
 #include<sstream>
 
-namespace mongoose { namespace type {
+namespace mongoose::type {
 
 struct date {
 private:
@@ -133,7 +133,7 @@ public:
     }
 };
 
-}}
+}
 
 namespace nlohmann {
 
@@ -153,13 +153,8 @@ struct adl_serializer<mongoose::type::date> {
             date = mongoose::type::date::from_string(j.get<std::string>());
             return;
         }
-        // not valid types
-        if(j.is_object()){
-            date = mongoose::type::date{j.at("$date").get<int64_t>()};
-            return;
-        }
         // no value
-        mongoose::logger::log(mongoose::logger::WARN, "mongoose: invalid $date format");
+        mongoose::logger::log(mongoose::logger::WARN, "mongoose: invalid $date type");
     }
 };
 

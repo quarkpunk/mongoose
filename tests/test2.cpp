@@ -1,6 +1,11 @@
-#include<mongoose/json.hpp>
+#include<mongoose/model.hpp>
 #include<mongoose/types/date.hpp>
 #include<mongoose/types/oid.hpp>
+#include<mongoose/types/binary.hpp>
+
+#include<bsoncxx/builder/basic/document.hpp>
+#include<bsoncxx/types.hpp>
+#include<bsoncxx/json.hpp>
 
 enum class user_gender{
     NONE,
@@ -15,7 +20,14 @@ struct user{
     user_gender gender;
     mongoose::type::date updated;
     mongoose::type::date created;
-    MODEL_JSON(user, _id, name, number, gender, updated, created);
+    MONGOOSE_MODEL(user, _id, name, number, gender, updated, created);
+};
+
+struct post{
+    mongoose::type::oid _id;
+    mongoose::type::binary text;
+    mongoose::type::date created;
+    MONGOOSE_MODEL(post, _id, text, created);
 };
 
 constexpr const char* json_string = R"({
@@ -27,8 +39,8 @@ constexpr const char* json_string = R"({
     "updated": 1753776828
 })";
 
-static void mongoose_model_test(){
-    puts("🏷 test json/bson model type");
+static void mongoose_bson_test(){
+    puts("🏷 test bson/model type");
     user model = {
         ._id = "68bf502bc6f9a9832f03ef01",
         .name = "Miroslaw",
@@ -37,29 +49,50 @@ static void mongoose_model_test(){
         .updated = mongoose::type::date{"2025-09-10T18:30:10.050Z"},
         .created = mongoose::type::date{"2025-05-08T12:05:10.000Z"}
     };
-    const auto model_bson = mongoose::json::to_bson(model);
-    const std::string model_json = mongoose::json::to_string(model);
-    const std::string model_bson_example = bsoncxx::to_json(model_bson);
-    printf(" ├─ model export (json to string): %s\n", model_json.c_str());
-    printf(" ├─ model export (bson to string): %s\n", model_bson_example.c_str());
 
-    user model_from_bson;
-    if(!mongoose::json::from_bson(model_from_bson, model_bson)){
+    // build to bsoncxx value
+    const bsoncxx::document::value model_bson = mongoose::model::to_bson(model);
+
+    // debug print all fields
+    for (const bsoncxx::document::element& value : model_bson){
+        printf(" * bson-field: %s\n", value.key().data());
+    }
+    
+    // model from bson value/view
+    user user_from_bson;
+    if(!mongoose::model::from_bson(user_from_bson, model_bson)){
         puts(" [!] failed from_bson, bad format");
         return;
     }
 
-    user model_from_string;
-    if(!mongoose::json::from_string(model_from_string, json_string)){
+    printf(" [OK] to bson string: %s\n", nlohmann::json(model).dump().c_str());
+    printf(" [OK] to json string: %s\n", mongoose::model::to_string(user_from_bson).c_str());
+}
+
+static void mongoose_bson_from_json(){
+    puts("🏷 test string/model type");
+    user model;
+    if(!mongoose::model::from_string(model, json_string)){
         puts(" [!] failed from_string, bad format");
-        return;
     }
 
-    printf(" ├─ model import (json from bson): %s\n", mongoose::json::to_string(model_from_bson).c_str());
-    printf(" └─ model import (json from string): %s\n", mongoose::json::to_string(model_from_string).c_str());
+    printf(" [OK] to bson string: %s\n", nlohmann::json(model).dump().c_str());
+    printf(" [OK] to json string: %s\n", mongoose::model::to_string(model).c_str());
+}
+
+static void mongoose_binary(){
+    puts("🏷 binary type");
+    post post = {
+        ._id = "68bf502bc6f9a9832f03ef01",
+        .text = mongoose::type::binary{"MongoDB Extended JSON"}
+    };
+    printf(" [OK] to bson string: %s\n", nlohmann::json(post).dump().c_str());
+    printf(" [OK] to json string: %s\n", mongoose::model::to_string(post).c_str());
 }
 
 int main(int argc, char const *argv[]){
-    mongoose_model_test();
+    mongoose_bson_test();
+    mongoose_bson_from_json();
+    mongoose_binary();
     return 0;
 }

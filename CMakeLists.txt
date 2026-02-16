@@ -11,7 +11,7 @@ option(MONGOOSE_BUILD_TESTS "Mongoose build tests" OFF)
 
 # packages
 find_package(mongocxx REQUIRED)
-find_package(nlohmann_json REQUIRED)
+find_package(nlohmann_json)
 
 # sources
 file(GLOB_RECURSE SRC ${PROJECT_SOURCE_DIR}/src/*.cpp)
