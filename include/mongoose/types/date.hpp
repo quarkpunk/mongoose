@@ -1,8 +1,8 @@
 #ifndef QUARKPUNK_MONGOOSE_TYPE_DATE_HPP
 #define QUARKPUNK_MONGOOSE_TYPE_DATE_HPP
 
+#include<mongoose/json.hpp>
 #include<mongoose/logger.hpp>
-#include<nlohmann/json.hpp>
 #include<chrono>
 #include<string>
 #include<iomanip>
@@ -143,14 +143,19 @@ struct adl_serializer<mongoose::type::date> {
         j = {{ "$date", date.to_timestamp() }};
     }
     static void from_json(const json& j, mongoose::type::date& date){
-        // from int (timestamp)
+        // from raw int (timestamp)
         if(j.is_number()){
             date = mongoose::type::date{j.get<int64_t>()};
             return;
         }
-        // from string
+        // from raw string
         if(j.is_string()){
             date = mongoose::type::date::from_string(j.get<std::string>());
+            return;
+        }
+        // from bson object
+        if(j.is_object() && j.contains("$date")){
+            date = mongoose::type::date{j.at("$date").get<int64_t>()};
             return;
         }
         // no value

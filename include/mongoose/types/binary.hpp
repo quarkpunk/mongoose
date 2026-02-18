@@ -1,8 +1,8 @@
 #ifndef QUARKPUNK_MONGOOSE_TYPE_BINARY_HPP
 #define QUARKPUNK_MONGOOSE_TYPE_BINARY_HPP
 
+#include<mongoose/json.hpp>
 #include<mongoose/logger.hpp>
-#include<nlohmann/json.hpp>
 #include<bsoncxx/types.hpp>
 
 namespace mongoose::type {

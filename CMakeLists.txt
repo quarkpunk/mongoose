@@ -11,7 +11,6 @@ option(MONGOOSE_BUILD_TESTS "Mongoose build tests" OFF)
 
 # packages
 find_package(mongocxx REQUIRED)
-find_package(nlohmann_json)
 
 # sources
 file(GLOB_RECURSE SRC ${PROJECT_SOURCE_DIR}/src/*.cpp)
@@ -22,7 +21,6 @@ target_sources(${PROJECT_NAME} PRIVATE ${SRC})
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PUBLIC
     mongo::mongocxx_static
-    nlohmann_json::nlohmann_json
 )
 
 # tests
@@ -35,4 +33,3 @@ endif()
 message("++ mongoose includes")
 message(${Boost_INCLUDE_DIRS})
 message(${mongocxx_INCLUDE_DIRS})
-message(${nlohmann_json_INCLUDE_DIRS})

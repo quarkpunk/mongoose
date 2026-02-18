@@ -1,8 +1,8 @@
 #ifndef QUARKPUNK_MONGOOSE_TYPE_GEO_POINT_HPP
 #define QUARKPUNK_MONGOOSE_TYPE_GEO_POINT_HPP
 
+#include<mongoose/json.hpp>
 #include<mongoose/logger.hpp>
-#include<nlohmann/json.hpp>
 #include<vector>
 #include<string>
 

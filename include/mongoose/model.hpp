@@ -1,7 +1,7 @@
 #ifndef QUARKPUNK_MONGOOSE_MODEL_HPP
 #define QUARKPUNK_MONGOOSE_MODEL_HPP
 
-#include<nlohmann/json.hpp>
+#include<mongoose/json.hpp>
 #include<mongoose/logger.hpp>
 #include<bsoncxx/document/value.hpp>
 #include<bsoncxx/document/view.hpp>

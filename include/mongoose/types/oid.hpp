@@ -2,7 +2,7 @@
 #define QUARKPUNK_MONGOOSE_TYPE_OID_HPP
 
 #include<mongoose/logger.hpp>
-#include<nlohmann/json.hpp>
+#include<mongoose/json.hpp>
 #include<string>
 #include<sstream>
 #include<iomanip>
