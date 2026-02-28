@@ -19,9 +19,9 @@ void mongodb::ping() {
         auto ping_cmd = bsoncxx::builder::stream::document{} << "ping" << 1 << bsoncxx::builder::stream::finalize;
         auto result = db.run_command(ping_cmd.view());
         result.view()["ok"].get_double() == 1.0 
-            ? mongoose::logger::log(mongoose::logger::INFO, "mongodb: connected") 
-            : mongoose::logger::log(mongoose::logger::ERROR, "mongodb: ping failed!");
+            ? mongoose::logger::log(mongoose::logger::INFO, "mongodb connected") 
+            : mongoose::logger::log(mongoose::logger::ERROR, "mongodb ping failed!");
     } catch(const std::exception& e) {
-        mongoose::logger::log(mongoose::logger::ERROR, "mongodb: ping -> %s", e.what());
+        mongoose::logger::log(mongoose::logger::ERROR, "mongodb ping -> %s", e.what());
     }
 }

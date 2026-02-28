@@ -1,76 +1,132 @@
 # Mongoose (MongoDB C++)
-
-A simple and efficient C++ client for MongoDB, inspired by the Mongoose JavaScript library. A simple and efficient C++ client for MongoDB, built on top of the Mongoose JavaScript library. The library templates basic CRUD methods for working with data and simplifies interaction with MongoDB
+Simple and efficient C++ serializer/deserializer for BSON documents intended for MongoDB. The library implements work with (almost) all the basic types necessary for working with BSON and JSON structures
 
 ✅ Convenient API
 - Easy to use
 - Models/Schemas
-- Templated repository
 
 📦 Dependencies
-- C++17
+- C++20
 - CMake
-- mongocxx (3.8.1)
-- nlohmann/json (3.11)
+- mongocxx (4.0.0)
+- boost.pfr (from mongocxx)
 
-## Repository
-Mongoose implements a basic CRUD repository that allows you to work with data at the model level <T> and raw JSON, the repository was created to template the main methods, but be careful if you care about memory optimization, as this is a template CRUD class that does not have virtual methods
+## Types Serialization from JSON and BSON
+These are the main data types this library can work with, specifically parsing and converting data between C++ and the BSON data format. Unfortunately, mongoose doesn't have its own JSON module for converting native BSON types into JSON string
 
-```cpp
-// mongodb instance
-mongoose::mongodb mongo("connection stirng");
-// template repositories
-mongoose::repository_crud<model::auth> auth_repos(&mongo, "db", "auths");
-mongoose::repository_crud<model::user> user_repos(&mongo, "db", "users");
-// use example
-model::auth auth_found;
-// return true if success
-auth_repos.find_by_id("56e6835a90ffdc6014c728c0", auth_found);
+| Type | BSON | JSON | About |
+|---|---|---|---|
+| int 32/64     | ✅    | ✅    | numbers|
+| bool          | ✅    | ✅    | boolean |
+| float         | ✅    | ✅    | num float |
+| double        | ✅    | ✅    | num double |
+| string        | ✅    | ✅    | basic string |
+| array         | ✅    | ✅    | fixed array |
+| vector        | ✅    | ✅    | dynamic vector |
+| enum class    | ✅    | ✅    | enum class type |
+| optional      | ✅    | ✅    | value or null |
+| object        | ✅    | ✅    | nested object |
+| time_point    | ✅    | ✅    | date time value |
+| object_oid    | ✅    | ✅    | id object |
+| binary        | ...   | ...   | binary data |
+
+## How to use
+Download the library in any way and place it in your project directory, include it in your CMake project
+```cmake
+# add library
+add_subdirectory(${PROJECT_SOURCE_DIR}/lib/mongoose)
+
+# link library
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    # dont link mongo::mongocxx_static
+    # mongoose alredy link mongocxx lib
+    mongoose
+)
 ```
 
 ## Model/Schema
-Models are created quite simply, all you need is to declare your structures and put define `MODEL_JSON` in them, then specify the name of your structure as the first argument, and then list the other fields, all this is necessary to enable `serialization` and `deserialization` between JSON/C++/BSON
+Models are created quite simply, it is enough to declare structures in the usual C++ form, and that's all
+
 ```cpp
-// other model
-struct user_image{
-    std::string original_url;
-    std::string croped_url;
-    MODEL_JSON(user_image, original_url, croped_url);
-};
-// main model
-struct user{
-    mongoose::type::oid _id;
+// to make working with dates easier
+using time_point = std::chrono::system_clock::time_point;
+
+// nested model/document
+struct user_city{
+    std::string id;
     std::string name;
-    std::string descr;
-    user_image avatar;
-    MODEL_JSON(user, _id, name, descr, avatar);
+};
+// nested model/document
+struct user_info{
+    int age;
+    std::string name;
+    std::optional<user_city> city;
+    std::vector<bsoncxx::oid> tags;
+};
+// main user model/document
+struct user{
+    bsoncxx::oid _id;
+    user_info info;
+    time_point created_at;
+    time_point updated_at;
 };
 ```
-
-I would like to pay special attention to the `id` field, which should not be included for `MODEL_JSON`, this is due to the fact that the `serializer` itself will insert the ObjectID value from the MongoDB document, but only if this is the root document where there is an ObjectID
-
-from json string to <T> your model
+To serialize your data into a BSON document, you need to
 ```cpp
-// any input json string
-// http body for example 
-std::string json_str;
-// your model
-user user_model;
-// return true if json model valid or false
-mongoose::json::from_string(user_model, json_str);
+// build BSON document value from struct
+auto doc = mongoose::to_bson(user_value);
 ```
-
-from model <T> to string json
 ```cpp
-// your model
-user user_model;
-// return final json string
-std::string result = mongoose::json::to_string(user_model);
+// build BSON document without _id
+// if you need to insert/update the entire document
+auto doc = mongoose::to_bson_without_id(user_value);
+auto result = collection.insert_one(doc.view());
 ```
 
 ## JSON
-`nlohmann json` was chosen due to its maximum flexible functionality, including the need for auto serialization/deserialization, so far this is the only library that is suitable for these tasks. At the moment, the name `json_value` is used for `nlohmann::json`, since many people like me may have conflicts of json names within one project, if you do not like the name `json_value` you can declare any of your own, this is normal
+To deserialize from JSON to BSON, for example, to retrieve from your frontend, use the `mongoose::from_json<T>(string)` method. The result will be an optional value `std::optional<T>`. If the JSON string is invalid, a `null` result will be returned
+```cpp
+// parse to <T> model from JSON string
+// return value if success parsing
+// and cast BSON value to <T> 
+std::optional<user> value = mongoose::from_json<user>(json_string);
 
+// check optional
+// failed, null value
+if(!value){
+    return;
+}
+```
+
+To serialize pure JSON from your C++ struct, it's best to assemble the JSON manually using any C++ JSON library, such as `nlohmann_json`, this is a simplified code example
+```cpp
+// build handmade your JSON
+nlohmann::json user_json = {
+    { "id", user._id },
+    { "info", {
+        { "age", user.info.age },
+        { "name", user.info.name },
+        { "city", nullptr },
+        { "tags", nlohmann::json::array() },
+    }},
+    { "updated_at", user.updated_at },    
+    { "created_at", user.created_at },    
+}
+
+// export JSON to string
+std::string result = user_json.dump();
+```
+
+As a last resort, you can use the native `bsoncxx::to_json` method from the bsoncxx library to construct a JSON string from your BSON document
+```cpp
+// parse <T> model to BSON document value
+auto doc = mongoose::to_bson(user_value);
+// bsoncxx native method
+// build JSON string from BSON document
+std::string result = bsoncxx::to_json(doc);
+```
+
+However, there's one important caveat. Your JSON will contain native BSON variable types, such as `$oid`, `$date`, and others. If this is acceptable to you, and the purity of your JSON isn't critical, then you can safely use `bsoncxx::to_json` method
 
 ## Concept
 In fact, I was tired of constantly writing the same code, so I wanted to template it and make it more accessible for writing my backend web applications without problems, I was inspired by the mongoose library in javascript and decided to write my own small version

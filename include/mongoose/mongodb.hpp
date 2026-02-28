@@ -1,5 +1,5 @@
-#ifndef QUARKPUNK_MONGODB_HPP
-#define QUARKPUNK_MONGODB_HPP
+#ifndef QUARKPUNK_MONGOOSE_MONGODB_HPP
+#define QUARKPUNK_MONGOOSE_MONGODB_HPP
 
 #include<mongocxx/client.hpp>
 #include<mongocxx/pool.hpp>
