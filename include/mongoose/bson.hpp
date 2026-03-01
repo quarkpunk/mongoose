@@ -3,18 +3,46 @@
 
 #include<mongoose/logger.hpp>
 #include<boost/pfr.hpp>
-#include<bsoncxx/builder/stream/document.hpp>
-#include<bsoncxx/builder/stream/array.hpp>
-#include<bsoncxx/document/view.hpp>
-#include<bsoncxx/types.hpp>
-#include<bsoncxx/oid.hpp>
-#include<bsoncxx/json.hpp>
 #include<string>
 #include<vector>
 #include<array>
 #include<optional>
 #include<chrono>
 #include<type_traits>
+
+// fix for bsoncxx ADL search impl trouble shooting
+// compiler finds this stub and the linker is happy
+// please include this header as the very first header in your main cpp
+// please, dont edit this and no touch
+namespace bsoncxx::v_noabi::document {
+    class view;
+
+    template<typename T>
+    void from_bson_please_ignore_me(T&, const view&){}
+}
+
+#define from_bson from_bson_please_ignore_me
+#include<bsoncxx/builder/stream/document.hpp>
+#include<bsoncxx/builder/stream/array.hpp>
+#include<bsoncxx/types.hpp>
+#include<bsoncxx/oid.hpp>
+#include<bsoncxx/json.hpp>
+#undef from_bson
+
+namespace mongoose::utils {
+
+inline bsoncxx::types::b_date date_to_bson(const std::chrono::system_clock::time_point& tp) {
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch());
+    return bsoncxx::types::b_date{ms};
+}
+
+inline std::chrono::system_clock::time_point date_from_bson(int32_t date) {
+    return std::chrono::system_clock::time_point{
+        std::chrono::milliseconds{date}
+    };
+}
+
+}
 
 namespace mongoose::traits {
 
@@ -24,6 +52,10 @@ struct always_false : std::false_type {};
 
 template<typename T>
 constexpr bool always_false_v = always_false<T>::value;
+
+// empty template - does nothing by default
+template<typename T, typename = void>
+struct is_custom_serializable : std::false_type {};
 
 // check for a primitive BSON type
 template<typename T>
@@ -70,17 +102,6 @@ concept AggregateStruct =
     !ArrayType<T> && 
     !OptionalType<T>;
 
-inline bsoncxx::types::b_date to_bson_date(const std::chrono::system_clock::time_point& tp) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch());
-    return bsoncxx::types::b_date{ms};
-}
-
-inline std::chrono::system_clock::time_point from_bson_date(int32_t date) {
-    return std::chrono::system_clock::time_point{
-        std::chrono::milliseconds{date}
-    };
-}
-
 template<typename B, typename T>
 void serialize_field_impl(B& builder, std::string_view name, const T& value);
 
@@ -114,20 +135,11 @@ T extract_field(const bsoncxx::document::view& doc, std::string_view name);
 template<typename T>
 T extract_array_element(const bsoncxx::array::element& element);
 
-// empty template - does nothing by default
-template<typename T, typename = void>
-struct is_custom_serializable : std::false_type {};
+template<typename T>
+void serialize_dispatch(bsoncxx::builder::stream::document& builder, std::string_view name, const T& value);
 
-// macro for registering custom types
-#define MONGOOSE_TYPE(TYPE) \
-    template<> \
-    struct is_custom_serializable<TYPE> : std::true_type {}; \
-    \
-    template<> \
-    bsoncxx::document::value serialize_custom(const TYPE& value); \
-    \
-    template<> \
-    TYPE deserialize_custom(const bsoncxx::document::view& doc);
+template<typename T>
+T extract_dispatch(const bsoncxx::document::view& doc, std::string_view name);
 
 template<typename T>
 bsoncxx::document::value serialize_custom(const T& value) {
@@ -136,7 +148,7 @@ bsoncxx::document::value serialize_custom(const T& value) {
 }
 
 template<typename T>
-T deserialize_custom(const bsoncxx::document::view& doc) {
+T deserialize_custom(const bsoncxx::document::view& doc, std::string_view name) {
     static_assert(always_false_v<T>, "deserialize_custom not implemented for this type");
     return T{};
 }
@@ -154,7 +166,7 @@ void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::stri
 template<OptionalType T>
 void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::string_view name, const T& opt) {
     if(opt.has_value()){
-        serialize_field_impl(builder, name, opt.value());
+        serialize_dispatch(builder, name, opt.value());
     } else {
         builder << name << bsoncxx::types::b_null{};
     }
@@ -162,7 +174,7 @@ void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::stri
 
 template<BsonDateType T>
 void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::string_view name, const T& value) {
-    builder << name << to_bson_date(value);
+    builder << name << mongoose::utils::date_to_bson(value);
 }
 
 template<VectorType T>
@@ -194,7 +206,7 @@ void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::stri
             sub_doc << field_name << custom_doc.view();
         }
         else {
-            serialize_field_impl(sub_doc, field_name, field);
+            serialize_dispatch(sub_doc, field_name, field);
         }
     });
     
@@ -207,13 +219,17 @@ void serialize_array_element(bsoncxx::builder::stream::array& array_builder, con
         array_builder << item;
     }
     else if constexpr (BsonDateType<T>) {
-        array_builder << to_bson_date(item);
+        array_builder << mongoose::utils::date_to_bson(item);
+    }
+    else if constexpr (is_custom_serializable<T>::value) {
+        auto custom_doc = serialize_custom(item);
+        array_builder << custom_doc.view();
     }
     else if constexpr (AggregateStruct<T>) {
         auto sub_doc = bsoncxx::builder::stream::document{};
         boost::pfr::for_each_field(item, [&sub_doc](const auto& field, auto index) {
             constexpr std::string_view field_name = boost::pfr::get_name<index(), std::decay_t<decltype(item)>>();
-            serialize_field_impl(sub_doc, field_name, field);
+            serialize_dispatch(sub_doc, field_name, field);
         });
         array_builder << sub_doc;
     }
@@ -284,7 +300,7 @@ T extract_field(const bsoncxx::document::view& doc, std::string_view name) {
             std::string("field not found: ") + std::string(name)
         );
     }
-    return from_bson_date(element.get_int32());
+    return mongoose::utils::date_from_bson(element.get_int32());
 }
 
 template<VectorType T>
@@ -339,7 +355,7 @@ T extract_field(const bsoncxx::document::view& doc, std::string_view name) {
         auto sub_doc = element.get_document().view();
         return T{from_bson<ValueType>(sub_doc)};
     } else {
-        return T{extract_field<ValueType>(doc, name)};
+        return T{extract_dispatch<ValueType>(doc, name)};
     }
 }
 
@@ -380,7 +396,7 @@ T extract_array_element(const bsoncxx::array::element& element) {
         return element.get_oid().value;
     }
     else if constexpr (BsonDateType<T>) {
-        return from_bson_date(element.get_int32());
+        return mongoose::utils::date_from_bson(element.get_int32());
     }
     else if constexpr (AggregateStruct<T>) {
         auto sub_doc = element.get_document().view();
@@ -403,6 +419,25 @@ T extract_array_element(const bsoncxx::array::element& element) {
     }
 }
 
+template<typename T>
+void serialize_dispatch(bsoncxx::builder::stream::document& builder, std::string_view name, const T& value) {
+    if constexpr (is_custom_serializable<T>::value) {
+        auto custom_doc = traits::serialize_custom(value);
+        builder << name << custom_doc.view();
+    } else {
+        serialize_field_impl(builder, name, value);
+    }
+}
+
+template<typename T>
+T extract_dispatch(const bsoncxx::document::view& doc, std::string_view name) {
+    if constexpr (is_custom_serializable<T>::value) {
+        return traits::deserialize_custom<T>(doc, name);
+    } else {
+        return extract_field<T>(doc, name);
+    }
+}
+
 }
 
 namespace mongoose {
@@ -413,7 +448,7 @@ bsoncxx::document::value to_bson(const T& obj) {
     auto builder = bsoncxx::builder::stream::document{};
     boost::pfr::for_each_field(obj, [&builder](const auto& field, auto index) {
         constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
-        traits::serialize_field_impl(builder, field_name, field);
+        traits::serialize_dispatch(builder, field_name, field);
     });
     return builder << bsoncxx::builder::stream::finalize;
 }
@@ -424,7 +459,7 @@ T from_bson(const bsoncxx::document::view& doc) {
     T result;
     boost::pfr::for_each_field(result, [&doc](auto& field, auto index) {
         constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
-        field = traits::extract_field<std::decay_t<decltype(field)>>(doc, field_name);
+        field = traits::extract_dispatch<std::decay_t<decltype(field)>>(doc, field_name);
     });
     return result;
 }
@@ -448,7 +483,7 @@ bsoncxx::document::value to_bson_without_id(const T& obj, const std::string_view
     boost::pfr::for_each_field(obj, [&builder, &id_field](const auto& field, auto index) {
         constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
         if(field_name == id_field) return;
-        traits::serialize_field_impl(builder, field_name, field);
+        traits::serialize_dispatch(builder, field_name, field);
     });
     return builder << bsoncxx::builder::stream::finalize;
 }
@@ -460,7 +495,7 @@ T from_bson_without_id(const bsoncxx::document::view& doc, const std::string_vie
     boost::pfr::for_each_field(result, [&doc, &id_field](auto& field, auto index) {
         constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
         if(field_name == id_field) return;
-        field = traits::extract_field<std::decay_t<decltype(field)>>(doc, field_name);
+        field = traits::extract_dispatch<std::decay_t<decltype(field)>>(doc, field_name);
     });
     return result;
 }

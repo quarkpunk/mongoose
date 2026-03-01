@@ -9,6 +9,12 @@ using time_point = std::chrono::system_clock::time_point;
 // test models
 namespace model{
 
+enum class user_gender{
+    NONE,
+    MAN,
+    WOMAN
+};
+
 struct user_city{
     std::string id;
     std::string name;
@@ -16,6 +22,7 @@ struct user_city{
 struct user_info{
     int age;
     std::string name;
+    user_gender gender;
     std::optional<user_city> city;
     std::vector<bsoncxx::oid> tags;
 };
@@ -35,6 +42,7 @@ constexpr const char* user_raw_json = R"({
     "info": {
         "age": 27,
         "name": "miroslaw",
+        "gender": 1,
         "city": null,
         "tags": [
             "60a9b0e0c5f1b2a3d4e5f680",
@@ -70,6 +78,7 @@ static void print_struct_values(const model::user& user_value){
         << "info: {\n"
         << "    age: " << user_value.info.age << "\n"
         << "    name: " << user_value.info.name.c_str() << "\n"
+        << "    gender: " << (int)user_value.info.gender << "\n"
         << "    city: " << "nullptr" << "\n"
         << "    tags: [\n";
         for(const auto value : user_value.info.tags){
@@ -117,6 +126,7 @@ static void test_to_bson(){
         .info = {
             .age = 27,
             .name = "miroslaw",
+            .gender = model::user_gender::MAN,
             .city = std::nullopt,
             .tags = {
                 bsoncxx::oid{"60a9b0e0c5f1b2a3d4e5f680"},

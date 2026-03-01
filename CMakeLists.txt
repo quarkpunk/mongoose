@@ -28,8 +28,3 @@ if(MONGOOSE_BUILD_TESTS)
     message("++ mongoose tests")
     add_subdirectory(${PROJECT_SOURCE_DIR}/tests)
 endif()
-
-# includes
-message("++ mongoose includes")
-message(${Boost_INCLUDE_DIRS})
-message(${mongocxx_INCLUDE_DIRS})
