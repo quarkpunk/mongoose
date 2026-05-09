@@ -1,14 +1,14 @@
 #ifndef QUARKPUNK_MONGOOSE_BSON_HPP
 #define QUARKPUNK_MONGOOSE_BSON_HPP
 
-#include<mongoose/logger.hpp>
-#include<boost/pfr.hpp>
-#include<string>
-#include<vector>
-#include<array>
-#include<optional>
-#include<chrono>
-#include<type_traits>
+#include <mongoose/logger.hpp>
+#include <boost/pfr.hpp>
+#include <string>
+#include <vector>
+#include <array>
+#include <optional>
+#include <chrono>
+#include <type_traits>
 
 // fix for bsoncxx ADL search impl trouble shooting
 // compiler finds this stub and the linker is happy
@@ -22,28 +22,53 @@ namespace bsoncxx::v_noabi::document {
 }
 
 #define from_bson from_bson_please_ignore_me
-#include<bsoncxx/builder/stream/document.hpp>
-#include<bsoncxx/builder/stream/array.hpp>
-#include<bsoncxx/types.hpp>
-#include<bsoncxx/oid.hpp>
-#include<bsoncxx/json.hpp>
+#include <bsoncxx/builder/stream/document.hpp>
+#include <bsoncxx/builder/stream/array.hpp>
+#include <bsoncxx/types.hpp>
+#include <bsoncxx/oid.hpp>
+#include <bsoncxx/json.hpp>
 #undef from_bson
 
+// namespace mongoose
+// forward decl main functions
+namespace mongoose {
+    template<typename T>
+    bsoncxx::document::value to_bson(const T& obj);
+
+    template<typename T>
+    T from_bson(const bsoncxx::document::view& doc);
+}
+
+// namespace mongoose details
+// internal detail specific functions
+namespace mongoose::details {
+    template<typename... Args>
+    constexpr bool exclude_contains(std::string_view value, Args... args) {
+        return ((value == args) || ...);
+    }
+}
+
+// namespace mongoose utils
+// internal utils functions
 namespace mongoose::utils {
 
-inline bsoncxx::types::b_date date_to_bson(const std::chrono::system_clock::time_point& tp) {
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch());
-    return bsoncxx::types::b_date{ms};
+    inline bsoncxx::types::b_date to_bson_date(const std::chrono::system_clock::time_point& tp) {
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            tp.time_since_epoch()
+        );
+        return bsoncxx::types::b_date{ms};
+    }
+
+    inline std::chrono::system_clock::time_point from_bson_date(int64_t date) {
+        return std::chrono::system_clock::time_point{
+            std::chrono::milliseconds{date}
+        };
+    }
+    
 }
 
-inline std::chrono::system_clock::time_point date_from_bson(int32_t date) {
-    return std::chrono::system_clock::time_point{
-        std::chrono::milliseconds{date}
-    };
-}
-
-}
-
+// namespace mongoose utils
+// main traits templates and concepts
 namespace mongoose::traits {
 
 // helper template for static_assert in constexpr if
@@ -174,7 +199,7 @@ void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::stri
 
 template<BsonDateType T>
 void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::string_view name, const T& value) {
-    builder << name << mongoose::utils::date_to_bson(value);
+    builder << name << mongoose::utils::to_bson_date(value);
 }
 
 template<VectorType T>
@@ -219,7 +244,7 @@ void serialize_array_element(bsoncxx::builder::stream::array& array_builder, con
         array_builder << item;
     }
     else if constexpr (BsonDateType<T>) {
-        array_builder << mongoose::utils::date_to_bson(item);
+        array_builder << mongoose::utils::to_bson_date(item);
     }
     else if constexpr (is_custom_serializable<T>::value) {
         auto custom_doc = serialize_custom(item);
@@ -252,6 +277,9 @@ T extract_field(const bsoncxx::document::view& doc, std::string_view name) {
         throw std::runtime_error(std::string("field not found: ") + std::string(name));
     }
     if constexpr (std::is_same_v<T, std::string>) {
+        if(element.type() == bsoncxx::type::k_oid){
+            return std::string(element.get_oid().value.to_string());
+        }
         return std::string(element.get_string().value);
     }
     else if constexpr (std::is_same_v<T, int32_t>) {
@@ -300,7 +328,15 @@ T extract_field(const bsoncxx::document::view& doc, std::string_view name) {
             std::string("field not found: ") + std::string(name)
         );
     }
-    return mongoose::utils::date_from_bson(element.get_int32());
+    if (element.type() == bsoncxx::type::k_date) {
+        return mongoose::utils::from_bson_date(element.get_date().value.count());
+    }
+    if (element.type() == bsoncxx::type::k_int64) {
+        return mongoose::utils::from_bson_date(element.get_int64().value);
+    }
+    throw std::runtime_error(
+        std::string("bad date format: ") + std::string(name)
+    );
 }
 
 template<VectorType T>
@@ -396,7 +432,12 @@ T extract_array_element(const bsoncxx::array::element& element) {
         return element.get_oid().value;
     }
     else if constexpr (BsonDateType<T>) {
-        return mongoose::utils::date_from_bson(element.get_int32());
+        if (element.type() == bsoncxx::type::k_date) {
+            return mongoose::utils::from_bson_date(element.get_date().value.count());
+        }
+        if (element.type() == bsoncxx::type::k_int64) {
+            return mongoose::utils::from_bson_date(element.get_int64().value);
+        }
     }
     else if constexpr (AggregateStruct<T>) {
         auto sub_doc = element.get_document().view();
@@ -440,66 +481,94 @@ T extract_dispatch(const bsoncxx::document::view& doc, std::string_view name) {
 
 }
 
+// main/used functions
+// and exclude fields functions
 namespace mongoose {
 
-template<typename T>
-bsoncxx::document::value to_bson(const T& obj) {
-    static_assert(std::is_aggregate_v<T>, "T must be an aggregate type");
-    auto builder = bsoncxx::builder::stream::document{};
-    boost::pfr::for_each_field(obj, [&builder](const auto& field, auto index) {
-        constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
-        traits::serialize_dispatch(builder, field_name, field);
-    });
-    return builder << bsoncxx::builder::stream::finalize;
-}
-
-template<typename T>
-T from_bson(const bsoncxx::document::view& doc) {
-    static_assert(std::is_aggregate_v<T>, "T must be an aggregate type");
-    T result;
-    boost::pfr::for_each_field(result, [&doc](auto& field, auto index) {
-        constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
-        field = traits::extract_dispatch<std::decay_t<decltype(field)>>(doc, field_name);
-    });
-    return result;
-}
-
-template<typename T>
-inline std::optional<T> from_json(const std::string& json) {
-    try {
-        const auto bson = bsoncxx::from_json(json);
-        const T result = from_bson<T>(bson.view());
-        return std::make_optional<T>(result);
-    } catch (const std::exception& e) {
-        mongoose::logger::log(mongoose::logger::ERROR, "error from_json, %s", e.what());
-        return std::nullopt;
+    template<typename T>
+    bsoncxx::document::value to_bson(const T& obj) {
+        static_assert(std::is_aggregate_v<T>, "T must be an aggregate type");
+        auto builder = bsoncxx::builder::stream::document{};
+        boost::pfr::for_each_field(obj, [&builder](const auto& field, auto index) {
+            constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
+            traits::serialize_dispatch(builder, field_name, field);
+        });
+        return builder << bsoncxx::builder::stream::finalize;
     }
-}
 
-template<typename T>
-bsoncxx::document::value to_bson_without_id(const T& obj, const std::string_view& id_field = "_id") {
-    static_assert(std::is_aggregate_v<T>, "T must be an aggregate type");
-    auto builder = bsoncxx::builder::stream::document{};
-    boost::pfr::for_each_field(obj, [&builder, &id_field](const auto& field, auto index) {
-        constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
-        if(field_name == id_field) return;
-        traits::serialize_dispatch(builder, field_name, field);
-    });
-    return builder << bsoncxx::builder::stream::finalize;
-}
+    template<typename T>
+    T from_bson(const bsoncxx::document::view& doc) {
+        static_assert(std::is_aggregate_v<T>, "T must be an aggregate type");
+        T result;
+        boost::pfr::for_each_field(result, [&doc](auto& field, auto index) {
+            constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
+            field = traits::extract_dispatch<std::decay_t<decltype(field)>>(doc, field_name);
+        });
+        return result;
+    }
 
-template<typename T>
-T from_bson_without_id(const bsoncxx::document::view& doc, const std::string_view& id_field = "_id") {
-    static_assert(std::is_aggregate_v<T>, "T must be an aggregate type");
-    T result;
-    boost::pfr::for_each_field(result, [&doc, &id_field](auto& field, auto index) {
-        constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
-        if(field_name == id_field) return;
-        field = traits::extract_dispatch<std::decay_t<decltype(field)>>(doc, field_name);
-    });
-    return result;
-}
+    template<typename T>
+    inline std::optional<T> from_json(const std::string& json) {
+        try {
+            const auto bson = bsoncxx::from_json(json);
+            const T result = from_bson<T>(bson.view());
+            return std::make_optional<T>(result);
+        } catch (const std::exception& e) {
+            mongoose::logger::log(mongoose::logger::ERROR, "error from_json, %s", e.what());
+            return std::nullopt;
+        }
+    }
 
+    template<typename T, typename... ExcludeFields>
+    bsoncxx::document::value to_bson_exclude(const T& obj, ExcludeFields... exclude_fields) {
+        // T want/must be an aggregate type 
+        // struct or object/docuemnt value
+        static_assert(std::is_aggregate_v<T>, "T must be an aggregate type");
+        static_assert(
+            (std::is_convertible_v<ExcludeFields, std::string_view> && ...), 
+            "all exclude fields must be convertible to string_view"
+        );
+        
+        auto builder = bsoncxx::builder::stream::document{};
+        
+        boost::pfr::for_each_field(obj, [&](const auto& field, auto index) {
+            constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
+            // check field name
+            // return (skip) loop if contain
+            if (details::exclude_contains(field_name, exclude_fields...)) {
+                return;
+            }
+            traits::serialize_dispatch(builder, field_name, field);
+        });
+        
+        return builder << bsoncxx::builder::stream::finalize;
+    }
+
+    template<typename T, typename... ExcludeFields>
+    T from_bson_exclude(const bsoncxx::document::view& doc, ExcludeFields... exclude_fields) {
+        // T want/must be an aggregate type 
+        // struct or object/docuemnt value
+        static_assert(std::is_aggregate_v<T>, "T must be an aggregate type");
+        static_assert(
+            (std::is_convertible_v<ExcludeFields, std::string_view> && ...), 
+            "all exclude fields must be convertible to string_view"
+        );
+        
+        T result;
+        
+        boost::pfr::for_each_field(result, [&](auto& field, auto index) {
+            constexpr std::string_view field_name = boost::pfr::get_name<index(), T>();
+            // check field name
+            // return (skip) loop if contain
+            if (details::exclude_contains(field_name, exclude_fields...)) {
+                return;
+            }
+            field = traits::extract_dispatch<std::decay_t<decltype(field)>>(doc, field_name);
+        });
+        
+        return result;
+    }
+    
 }
 
 #endif
