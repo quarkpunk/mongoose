@@ -1,14 +1,12 @@
 #ifndef QUARKPUNK_MONGOOSE_BSON_HPP
 #define QUARKPUNK_MONGOOSE_BSON_HPP
 
-#include <mongoose/logger.hpp>
-#include <boost/pfr.hpp>
 #include <string>
 #include <vector>
 #include <array>
 #include <optional>
 #include <chrono>
-#include <type_traits>
+#include <boost/pfr.hpp>
 
 // fix for bsoncxx ADL search impl trouble shooting
 // compiler finds this stub and the linker is happy
@@ -51,23 +49,20 @@ namespace mongoose::details {
 // namespace mongoose utils
 // internal utils functions
 namespace mongoose::utils {
-
     inline bsoncxx::types::b_date to_bson_date(const std::chrono::system_clock::time_point& tp) {
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             tp.time_since_epoch()
         );
         return bsoncxx::types::b_date{ms};
     }
-
     inline std::chrono::system_clock::time_point from_bson_date(int64_t date) {
         return std::chrono::system_clock::time_point{
             std::chrono::milliseconds{date}
         };
     }
-    
 }
 
-// namespace mongoose utils
+// namespace mongoose traits
 // main traits templates and concepts
 namespace mongoose::traits {
 
@@ -505,18 +500,6 @@ namespace mongoose {
             field = traits::extract_dispatch<std::decay_t<decltype(field)>>(doc, field_name);
         });
         return result;
-    }
-
-    template<typename T>
-    inline std::optional<T> from_json(const std::string& json) {
-        try {
-            const auto bson = bsoncxx::from_json(json);
-            const T result = from_bson<T>(bson.view());
-            return std::make_optional<T>(result);
-        } catch (const std::exception& e) {
-            mongoose::logger::log(mongoose::logger::ERROR, "error from_json, %s", e.what());
-            return std::nullopt;
-        }
     }
 
     template<typename T, typename... ExcludeFields>

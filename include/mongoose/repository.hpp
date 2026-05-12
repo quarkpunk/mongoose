@@ -1,9 +1,9 @@
-#ifndef QUARKPUNK_MONGOOSE_REPOSITOY_HPP
-#define QUARKPUNK_MONGOOSE_REPOSITOY_HPP
+#ifndef QUARKPUNK_MONGOOSE_REPOSITORY_HPP
+#define QUARKPUNK_MONGOOSE_REPOSITORY_HPP
 
 #include<mongoose/mongodb.hpp>
 
-namespace mongoose{
+namespace mongoose {
 
 class repository {
 public:

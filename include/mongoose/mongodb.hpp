@@ -1,12 +1,12 @@
 #ifndef QUARKPUNK_MONGOOSE_MONGODB_HPP
 #define QUARKPUNK_MONGOOSE_MONGODB_HPP
 
-#include<mongocxx/client.hpp>
-#include<mongocxx/pool.hpp>
+#include <mongocxx/client.hpp>
+#include <mongocxx/pool.hpp>
 
-namespace mongoose{
+namespace mongoose {
 
-class mongodb{
+class mongodb {
 public:
     mongodb(const std::string& uri) : pool{mongocxx::uri{uri}}{ ping(); }
     ~mongodb();

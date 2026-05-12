@@ -1,36 +1,47 @@
-#include<mongoose/bson.hpp>
-#include<iostream>
+#include <iostream>
+#include <nlohmann/json.hpp>
+#include <mongoose/json.hpp>
+#include <mongoose/logger.hpp>
+#include <mongoose/bson.hpp>
+#include <mongoose/types/date.hpp>
+#include <mongoose/types/oid.hpp>
 
-// only for testing
-// to make working with dates easier
-using time_point = std::chrono::system_clock::time_point;
+// nlohmann_json macros
+#ifndef JSON_MODEL
+#define JSON_MODEL NLOHMANN_DEFINE_TYPE_INTRUSIVE
+#endif
 
 // only for testing
 // test models
-namespace model{
+namespace model {
 
-enum class user_gender{
+enum class user_gender {
     NONE,
     MAN,
     WOMAN
 };
 
-struct user_city{
+struct user_city {
     std::string id;
     std::string name;
+    JSON_MODEL(user_city, id, name);
 };
-struct user_info{
+
+struct user_info {
     int age;
     std::string name;
     user_gender gender;
     std::optional<user_city> city;
-    std::vector<bsoncxx::oid> tags;
+    std::vector<mongoose::oid> tags;
+    JSON_MODEL(user_info, age, name, gender, city, tags);
 };
-struct user{
-    bsoncxx::oid _id;
+
+struct user {
+    mongoose::oid _id;
     user_info info;
-    time_point created_at;
-    time_point updated_at;
+    mongoose::date created_at;
+    mongoose::date updated_at;
+    JSON_MODEL(user, _id, info, created_at, updated_at);
 };
 
 }
@@ -50,24 +61,9 @@ constexpr const char* user_raw_json = R"({
         ]
     },
     "trash": "this trash field, for test",
-    "created_at": 1772279924,
-    "updated_at": 1772280600
+    "created_at": 1645705800,
+    "updated_at": 1778541821
 })";
-
-
-
-// only for testing
-// fast convert/cast to milliseconds (timestamp)
-static inline const time_point date_to_bson(int32_t time_ms){
-    std::chrono::milliseconds duration_ms(time_ms);
-    return std::chrono::time_point<std::chrono::system_clock>(duration_ms);
-}
-
-// only for testing
-// fast convert/cast to milliseconds (timestamp)
-static inline const int32_t date_parse_bson(time_point time){
-    return std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count();
-}
 
 // only for testing
 // preview method for testing
@@ -85,8 +81,8 @@ static void print_struct_values(const model::user& user_value){
             std::cout << "        " << value.to_string().c_str() << "\n";
         }
         std::cout << "    ]\n"
-        << "    created_at: " <<  date_parse_bson(user_value.created_at) << "\n"
-        << "    updated_at: " <<  date_parse_bson(user_value.updated_at) << "\n"
+        << "    created_at: " <<  mongoose::types::date::to_string(user_value.created_at) << "\n"
+        << "    updated_at: " <<  mongoose::types::date::to_string(user_value.updated_at) << "\n"
     << "}\n";
 }
 
@@ -96,7 +92,7 @@ static void test_parse_from_json(){
     // parse to <T> model from JSON string
     // return value if success parsing
     // and cast BSON value to <T> 
-    const std::optional<model::user> value = mongoose::from_json<model::user>(user_raw_json);
+    const std::optional<model::user> value = mongoose::json::from_string<model::user>(user_raw_json);
 
     // failed, null value
     if(!value){
@@ -122,19 +118,19 @@ static void test_to_bson(){
 
     // test model
     model::user user_value = {
-        ._id = bsoncxx::oid{"68bf502bc6f9a9832f03ef01"},
+        ._id = mongoose::oid{"68bf502bc6f9a9832f03ef01"},
         .info = {
             .age = 27,
             .name = "miroslaw",
             .gender = model::user_gender::MAN,
             .city = std::nullopt,
             .tags = {
-                bsoncxx::oid{"60a9b0e0c5f1b2a3d4e5f680"},
-                bsoncxx::oid{"60a9b0e0c5f1b2a3d4e5f678"}
+                mongoose::oid{"60a9b0e0c5f1b2a3d4e5f680"},
+                mongoose::oid{"60a9b0e0c5f1b2a3d4e5f678"}
             }
         },
-        .created_at = date_to_bson(1772279924),
-        .updated_at = date_to_bson(1772280600)
+        .created_at = mongoose::types::date::from_timestamp(1778540232),
+        .updated_at = mongoose::types::date::from_timestamp(1778539457)
     };
 
     // parse C++ struct to BSON document value

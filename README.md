@@ -14,21 +14,22 @@ Simple and efficient C++ serializer/deserializer for BSON documents intended for
 ## Types Serialization from JSON and BSON
 These are the main data types this library can work with, specifically parsing and converting data between C++ and the BSON data format. Unfortunately, mongoose doesn't have its own JSON module for converting native BSON types into JSON string
 
-| Type | BSON | JSON | About |
-|---|---|---|---|
-| int 32/64     | ✅    | ✅    | numbers|
-| bool          | ✅    | ✅    | boolean |
-| float         | ✅    | ✅    | num float |
-| double        | ✅    | ✅    | num double |
-| string        | ✅    | ✅    | basic string |
-| array         | ✅    | ✅    | fixed array |
-| vector        | ✅    | ✅    | dynamic vector |
-| enum class    | ✅    | ✅    | enum class type |
-| optional      | ✅    | ✅    | value or null |
-| object        | ✅    | ✅    | nested object |
-| time_point    | ✅    | ✅    | date time value |
-| object_oid    | ✅    | ✅    | id object |
-| binary        | ...   | ...   | binary data |
+| C++           | BSON |  About |
+|---------------|------|---------|
+| int 32/64     | ✅   | numbers|
+| bool          | ✅   | boolean |
+| float         | ✅   | num float |
+| double        | ✅   | num double |
+| string        | ✅   | basic string |
+| array         | ✅   | fixed array |
+| vector        | ✅   | dynamic vector |
+| enum class    | ✅   | enum class type |
+| optional      | ✅   | value or null |
+| struct/object | ✅   | nested object |
+| time_point    | ✅   | date time value |
+| object_id     | ✅   | bson object id |
+| variant       | ...  | variant value |
+| binary        | ...  | binary data |
 
 ## How to use
 Download the library in any way and place it in your project directory, include it in your CMake project
@@ -48,27 +49,23 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 Models are created quite simply, it is enough to declare structures in the usual C++ form, and that's all
 
 ```cpp
-// to make working with dates easier
-using time_point = std::chrono::system_clock::time_point;
+// using date type
+#include <mongoose/types/oid.hpp>
+#include <mongoose/types/date.hpp>
 
-// nested model/document
-struct user_city{
-    std::string id;
-    std::string name;
-};
-// nested model/document
-struct user_info{
+// nested document
+struct user_info {
     int age;
     std::string name;
-    std::optional<user_city> city;
-    std::vector<bsoncxx::oid> tags;
+    std::string city;
+    std::vector<mongoose::oid> tags;
 };
-// main user model/document
-struct user{
-    bsoncxx::oid _id;
-    user_info info;
-    time_point created_at;
-    time_point updated_at;
+
+// main user document
+struct user {
+    std::optional<mongoose::oid> _id;
+    std::optional<user_info> info;
+    mongoose::date created_at;
 };
 ```
 To serialize your data into a BSON document, you need to
@@ -77,14 +74,15 @@ To serialize your data into a BSON document, you need to
 auto doc = mongoose::to_bson(user_value);
 ```
 ```cpp
-// build BSON document without _id
+// build BSON document without _id field
 // if you need to insert/update the entire document
-auto doc = mongoose::to_bson_without_id(user_value);
+auto doc = mongoose::to_bson_exclude(user_value, "_id");
 auto result = collection.insert_one(doc.view());
 ```
 
 ## JSON
 To deserialize from JSON to BSON, for example, to retrieve from your frontend, use the `mongoose::from_json<T>(string)` method. The result will be an optional value `std::optional<T>`. If the JSON string is invalid, a `null` result will be returned
+
 ```cpp
 // parse to <T> model from JSON string
 // return value if success parsing
@@ -99,6 +97,7 @@ if(!value){
 ```
 
 To serialize pure JSON from your C++ struct, it's best to assemble the JSON manually using any C++ JSON library, such as `nlohmann_json`, this is a simplified code example
+
 ```cpp
 // build handmade your JSON
 nlohmann::json user_json = {
@@ -116,17 +115,6 @@ nlohmann::json user_json = {
 // export JSON to string
 std::string result = user_json.dump();
 ```
-
-As a last resort, you can use the native `bsoncxx::to_json` method from the bsoncxx library to construct a JSON string from your BSON document
-```cpp
-// parse <T> model to BSON document value
-auto doc = mongoose::to_bson(user_value);
-// bsoncxx native method
-// build JSON string from BSON document
-std::string result = bsoncxx::to_json(doc);
-```
-
-However, there's one important caveat. Your JSON will contain native BSON variable types, such as `$oid`, `$date`, and others. If this is acceptable to you, and the purity of your JSON isn't critical, then you can safely use `bsoncxx::to_json` method
 
 ## Concept
 In fact, I was tired of constantly writing the same code, so I wanted to template it and make it more accessible for writing my backend web applications without problems, I was inspired by the mongoose library in javascript and decided to write my own small version
