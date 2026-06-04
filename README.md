@@ -25,9 +25,10 @@ These are the main data types this library can work with, specifically parsing a
 | vector        | ✅   | dynamic vector |
 | enum class    | ✅   | enum class type |
 | optional      | ✅   | value or null |
-| struct/object | ✅   | nested object |
-| time_point    | ✅   | date time value |
-| object_id     | ✅   | bson object id |
+| struct        | ✅   | nested object |
+| date          | ✅   | time point value |
+| object id     | ✅   | bson object id |
+| uuid v4       | ✅   | binary uuid type |
 | variant       | ...  | variant value |
 | binary        | ...  | binary data |
 

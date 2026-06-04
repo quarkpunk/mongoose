@@ -42,7 +42,7 @@ namespace mongoose::types::date {
         char delimiter;
         iss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
         if (iss.fail()) {
-            throw std::runtime_error("Failed to parse date string: " + iso_str);
+            throw std::runtime_error("json failed parse date string: " + iso_str);
         }
 
         // try parse milliseconds
@@ -131,8 +131,8 @@ namespace mongoose::types::date {
 }
 
 // NLOHMANN_JSON type adapter
-// NLOHMANN_JSON should already be included above
-#ifdef NLOHMANN_JSON_VERSION_MAJOR
+#ifdef MONGOOSE_USE_NLOHMANN_JSON
+#include <nlohmann/json.hpp>
 
 namespace nlohmann {
 
@@ -154,15 +154,15 @@ namespace nlohmann {
                     value = mongoose::types::date::from_timestamp(timestamp);
                     return;
                 }
-            } catch (const std::exception& e) {
-                // fallback to default
             }
-            
+            catch (const std::exception& e) {}
+
+            // fallback to default value
             value = mongoose::time_point{};
         }
     };
 
 }
 
-#endif // NLOHMANN_JSON_VERSION_MAJOR
+#endif // MONGOOSE_USE_NLOHMANN_JSON
 #endif // MONGOOSE_TYPES_DATE_HPP

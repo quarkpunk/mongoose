@@ -7,10 +7,12 @@
 #include <optional>
 #include <chrono>
 #include <boost/pfr.hpp>
+#include <boost/uuid/uuid.hpp>
 
 // fix for bsoncxx ADL search impl trouble shooting
 // compiler finds this stub and the linker is happy
-// please include this header as the very first header in your main cpp
+// if you have problems, include this header file
+// as the very first header file in your main .cpp file
 // please, dont edit this and no touch
 namespace bsoncxx::v_noabi::document {
     class view;
@@ -55,10 +57,36 @@ namespace mongoose::utils {
         );
         return bsoncxx::types::b_date{ms};
     }
+
     inline std::chrono::system_clock::time_point from_bson_date(int64_t date) {
         return std::chrono::system_clock::time_point{
             std::chrono::milliseconds{date}
         };
+    }
+
+    inline bsoncxx::types::b_binary to_bson_uuid(const boost::uuids::uuid& value){
+        const std::vector<std::uint8_t> uuid_bytes(value.begin(), value.end());
+        return bsoncxx::types::b_binary{
+            bsoncxx::binary_sub_type::k_uuid, 
+            static_cast<std::uint32_t>(uuid_bytes.size()), 
+            uuid_bytes.data()
+        };
+    }
+
+    inline boost::uuids::uuid from_bson_uuid(const bsoncxx::types::b_binary& value) {
+        if (value.sub_type != bsoncxx::binary_sub_type::k_uuid){
+            throw std::runtime_error(
+                std::string("field binary not valid for uuid type")
+            );
+        }
+
+        if (value.size != 16) {
+            throw std::runtime_error("field binary size is not valid for uuid");
+        }
+
+        boost::uuids::uuid uuid_new;
+        std::memcpy(uuid_new.data, value.bytes, 16);
+        return uuid_new;
     }
 }
 
@@ -93,6 +121,11 @@ template<typename T>
 concept BsonDateType = 
     std::is_same_v<T, std::chrono::system_clock::time_point>;
 
+// checking for BSON uuid
+template<typename T>
+concept BsonUuidType =
+    std::is_same_v<T, boost::uuids::uuid>;
+
 // check for vector
 template<typename T>
 concept VectorType = 
@@ -118,6 +151,7 @@ concept AggregateStruct =
     std::is_aggregate_v<T> && 
     !PrimitiveBsonType<T> && 
     !BsonDateType<T> &&
+    !BsonUuidType<T> &&
     !VectorType<T> && 
     !ArrayType<T> && 
     !OptionalType<T>;
@@ -138,6 +172,9 @@ template<OptionalType T>
 void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::string_view name, const T& opt);
 
 template<BsonDateType T>
+void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::string_view name, const T& value);
+
+template<BsonUuidType T>
 void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::string_view name, const T& value);
 
 template<VectorType T>
@@ -195,6 +232,11 @@ void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::stri
 template<BsonDateType T>
 void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::string_view name, const T& value) {
     builder << name << mongoose::utils::to_bson_date(value);
+}
+
+template<BsonUuidType T>
+void serialize_field_impl(bsoncxx::builder::stream::document& builder, std::string_view name, const T& value) {
+    builder << name << mongoose::utils::to_bson_uuid(value);
 }
 
 template<VectorType T>
@@ -334,6 +376,25 @@ T extract_field(const bsoncxx::document::view& doc, std::string_view name) {
     );
 }
 
+template<BsonUuidType T>
+T extract_field(const bsoncxx::document::view& doc, std::string_view name) {
+    auto element = doc[name];
+    if (!element) {
+        throw std::runtime_error(
+            std::string("field not found: ") + std::string(name)
+        );
+    }
+
+    if (element.type() != bsoncxx::type::k_binary){
+        throw std::runtime_error(
+            std::string("field must be binary: ") + std::string(name)
+        );
+    }
+
+    return mongoose::utils::from_bson_uuid(element.get_binary());
+}
+
+
 template<VectorType T>
 T extract_field(const bsoncxx::document::view& doc, std::string_view name) {
     auto element = doc[name];
@@ -432,6 +493,14 @@ T extract_array_element(const bsoncxx::array::element& element) {
         }
         if (element.type() == bsoncxx::type::k_int64) {
             return mongoose::utils::from_bson_date(element.get_int64().value);
+        }
+    }
+    else if constexpr (BsonUuidType<T>) {
+        if (element.type() == bsoncxx::type::k_binary){
+            bsoncxx::types::b_binary binary_value = element.get_binary();
+            if (binary_value.sub_type == bsoncxx::binary_sub_type::k_uuid){
+                return mongoose::utils::from_bson_uuid(element.get_binary());
+            }
         }
     }
     else if constexpr (AggregateStruct<T>) {
