@@ -65,11 +65,10 @@ namespace mongoose::utils {
     }
 
     inline bsoncxx::types::b_binary to_bson_uuid(const boost::uuids::uuid& value){
-        const std::vector<std::uint8_t> uuid_bytes(value.begin(), value.end());
         return bsoncxx::types::b_binary{
             bsoncxx::binary_sub_type::k_uuid, 
-            static_cast<std::uint32_t>(uuid_bytes.size()), 
-            uuid_bytes.data()
+            static_cast<std::uint32_t>(value.size()), 
+            value.data()
         };
     }
 

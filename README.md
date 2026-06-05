@@ -28,9 +28,9 @@ These are the main data types this library can work with, specifically parsing a
 | struct        | ✅   | nested object |
 | date          | ✅   | time point value |
 | object id     | ✅   | bson object id |
-| uuid v4       | ✅   | binary uuid type |
-| variant       | ...  | variant value |
+| uuid 4/7      | ✅   | binary uuid types |
 | binary        | ...  | binary data |
+| variant       | ...  | variant value |
 
 ## How to use
 Download the library in any way and place it in your project directory, include it in your CMake project

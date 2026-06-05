@@ -43,13 +43,14 @@ struct product_size {
 
 struct product {
     mongoose::oid _id;
+    std::optional<mongoose::uuid> id;
     product_type type;
     std::string name;
     int price;
     std::vector<product_size> sizes;
     std::optional<mongoose::uuid> key;
     mongoose::date created_at;
-    JSON_MODEL(product, _id, type, sizes, key, created_at);
+    JSON_MODEL(product, _id, id, type, sizes, key, created_at);
 };
 
 }
@@ -63,11 +64,14 @@ std::optional<mongoose::oid> test_bson_insert_mongo(mongoose::mongodb& mongo){
     product_new.name = "Pizza";
     product_new.price = 120;
     product_new.created_at = mongoose::types::date::now();
-    product_new.key = mongoose::uuid();
     product_new.sizes = {
         models::product_size { .name="Small", .value="S" },
         models::product_size { .name="Medium", .value="M" }
     };
+
+    // generate uuids
+    product_new.id = mongoose::types::uuid::generate_v7();
+    product_new.key = mongoose::types::uuid::generate_v4();
 
     // try get connection from pool
     const auto conn = mongo.pool.try_acquire();

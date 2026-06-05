@@ -5,14 +5,30 @@
 #include <stdexcept>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/random_generator.hpp>
+#include <boost/uuid/time_generator_v7.hpp>
 #include <boost/uuid/string_generator.hpp>
+#include <iostream>
 
 namespace mongoose {
     using uuid = boost::uuids::uuid;
 }
 
 namespace mongoose::types::uuid {
-    // from string
+    
+    // generate uuid v4
+    inline mongoose::uuid generate_v4() {
+        boost::uuids::random_generator generator;
+        return generator();
+    }
+
+    // generate uuid v7
+    inline mongoose::uuid generate_v7() {
+        boost::uuids::time_generator_v7 generator;
+        return generator();
+    }
+
+    // from string to uuid
     inline mongoose::uuid from_string(const std::string& str) {
         try {
             boost::uuids::string_generator gen;
@@ -29,9 +45,25 @@ namespace mongoose::types::uuid {
         }
     }
 
-    // to string
+    // to string from uuid
     inline std::string to_string(const mongoose::uuid& value) {
         return boost::uuids::to_string(value);
+    }
+
+    // validation
+    inline bool is_valid(const std::string& str) noexcept {
+        try {
+            boost::uuids::string_generator gen;
+            auto uuid = gen(str);
+            return !uuid.is_nil() && uuid.version() != boost::uuids::uuid::version_unknown;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    // validation
+    inline bool is_valid(const mongoose::uuid& uuid) noexcept {
+        return !uuid.is_nil();
     }
 }
 

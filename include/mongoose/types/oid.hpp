@@ -28,16 +28,6 @@ namespace mongoose::types::oid {
     inline bool equals(const object_id& a, const object_id& b) {
         return a == b;
     }
-
-    // check is valid OID
-    inline bool is_valid(const std::string& str) {
-        try {
-            from_string(str);
-            return true;
-        }
-        catch(const std::exception& e) {}
-        return false;
-    }
 }
 
 // NLOHMANN_JSON type adapter
