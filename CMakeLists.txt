@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # options
 option(MONGOOSE_BUILD_TESTS "Mongoose build tests" OFF)
+option(MONGOOSE_LINK_MONGO_STATIC "Mongoose static link mongocxx" ON)
 option(MONGOOSE_USE_NLOHMANN_JSON "Mongoose use nlohmann json library" OFF)
 
 # check package nlohmann_json
@@ -29,12 +30,17 @@ file(GLOB_RECURSE SRC ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
 # library
 add_library(${PROJECT_NAME} STATIC)
-
 target_sources(${PROJECT_NAME} PRIVATE ${SRC})
-target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include)
-target_link_libraries(${PROJECT_NAME} PUBLIC
-    mongo::mongocxx_static
+target_include_directories(${PROJECT_NAME} PUBLIC
+    ${PROJECT_SOURCE_DIR}/include
 )
+
+# link mongocxx
+if(MONGOOSE_LINK_MONGO_STATIC)
+    target_link_libraries(${PROJECT_NAME} PUBLIC mongo::mongocxx_static)
+else()
+    target_link_libraries(${PROJECT_NAME} PUBLIC mongo::mongocxx_shared)
+endif()
 
 # сonditionally link nlohmann_json
 if(MONGOOSE_USE_NLOHMANN_JSON AND nlohmann_json_FOUND)
