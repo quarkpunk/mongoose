@@ -1,19 +1,27 @@
-#include <iostream>
-#include <nlohmann/json.hpp>
 #include <mongoose/json.hpp>
 #include <mongoose/logger.hpp>
 #include <mongoose/bson.hpp>
 #include <mongoose/types/date.hpp>
 #include <mongoose/types/oid.hpp>
 
-// nlohmann_json macros
+// if using nlohmann json
+// nlohmann json macro for structs
+#ifdef MONGOOSE_USE_NLOHMANN_JSON
+
 #ifndef JSON_MODEL
 #define JSON_MODEL NLOHMANN_DEFINE_TYPE_INTRUSIVE
 #endif
 
-// only for testing
+#else
+
+#ifndef JSON_MODEL
+#define JSON_MODEL(Type, ...)
+#endif
+
+#endif
+
 // test models
-namespace model {
+namespace models {
 
 enum class user_gender {
     NONE,
@@ -46,9 +54,8 @@ struct user {
 
 }
 
-// only for testing
-// test json raw text for parsing
-constexpr const char* user_raw_json = R"({
+// json string for parsing
+constexpr const char* json_user_string = R"({
     "_id": "68bf502bc6f9a9832f03ef01",
     "info": {
         "age": 27,
@@ -60,107 +67,117 @@ constexpr const char* user_raw_json = R"({
             "60a9b0e0c5f1b2a3d4e5f678"
         ]
     },
-    "trash": "this trash field, for test",
+    "trash": "trash field",
     "created_at": 1645705800,
     "updated_at": 1778541821
 })";
 
-// only for testing
-// preview method for testing
-static void print_struct_values(const model::user& user_value){
-    mongoose::logger::log(mongoose::logger::level::INFO, "[*] C++ struct preview from BSON");
-    std::cout
-        << "_id: " << user_value._id.to_string() << "\n"
-        << "info: {\n"
-        << "    age: " << user_value.info.age << "\n"
-        << "    name: " << user_value.info.name.c_str() << "\n"
-        << "    gender: " << (int)user_value.info.gender << "\n"
-        << "    city: " << "nullptr" << "\n"
-        << "    tags: [\n";
-        for(const auto value : user_value.info.tags){
-            std::cout << "        " << value.to_string().c_str() << "\n";
-        }
-        std::cout << "    ]\n"
-        << "    created_at: " <<  mongoose::types::date::to_string(user_value.created_at) << "\n"
-        << "    updated_at: " <<  mongoose::types::date::to_string(user_value.updated_at) << "\n"
-    << "}\n";
-}
+void test_parse_json(){
+    mongoose::logger::log(mongoose::logger::level::INFO, "--- test parase json ---");
 
-static void test_parse_from_json(){
-    mongoose::logger::log(mongoose::logger::level::INFO, "[+] test parse_from_json");
-
-    // parse to <T> model from JSON string
-    // return value if success parsing
-    // and cast BSON value to <T> 
-    const std::optional<model::user> value = mongoose::json::from_string<model::user>(user_raw_json);
-
-    // failed, null value
-    if(!value){
-        mongoose::logger::log(mongoose::logger::level::WARN, "failed parse test model user");
+    // try parse model from json
+    // used only json impl serialization
+    const auto user = mongoose::json::from_string<models::user>(json_user_string);
+    
+    // user not value
+    if(!user){
+        mongoose::logger::log(mongoose::logger::level::INFO, "user null value, test stop");
         return;
     }
 
-    // success parsing
-    // bson to json string for preview
-    mongoose::logger::log(mongoose::logger::level::INFO, "[*] BSON preview -> \n%s",
-        bsoncxx::to_json(mongoose::to_bson(*value)).c_str()
+    // dump model to json
+    const std::string user_dump = mongoose::json::to_string(user, 3);
+
+    // log output
+    mongoose::logger::log(mongoose::logger::level::INFO,
+        "user json:\n%s\n", user_dump.c_str()
     );
-
-    // get value
-    const model::user& user_value = *value;
-
-    // print debug real values
-    print_struct_values(user_value);
 }
 
-static void test_to_bson(){
-    mongoose::logger::log(mongoose::logger::level::INFO, "[+] test to_bson");
-
-    // test model
-    model::user user_value = {
+void test_to_json(){
+    mongoose::logger::log(mongoose::logger::level::INFO, "--- test dump json ---");
+    
+    // example
+    models::user user_new = {
         ._id = mongoose::oid{"68bf502bc6f9a9832f03ef01"},
         .info = {
             .age = 27,
-            .name = "miroslaw",
-            .gender = model::user_gender::MAN,
+            .name = "Miroslaw",
+            .gender = models::user_gender::MAN,
+            .city = std::nullopt,
+            .tags = {}
+        },
+        .created_at = mongoose::types::date::from_timestamp(1645705800),
+        .updated_at = {}
+    };
+
+    // dynamic values
+    user_new.info.tags.push_back(mongoose::oid{"60a9b0e0c5f1b2a3d4e5f680"});
+    user_new.info.tags.push_back(mongoose::oid{"60a9b0e0c5f1b2a3d4e5f678"});
+    user_new.updated_at = mongoose::types::date::now();
+
+    // dump model to json
+    const std::string user_dump = mongoose::json::to_string(user_new, 3);
+
+    // log output
+    mongoose::logger::log(mongoose::logger::level::INFO,
+        "user json:\n%s\n", user_dump.c_str()
+    );
+}
+
+void test_bson_to_json(){
+    mongoose::logger::log(mongoose::logger::level::INFO, "--- test to bson (json preview) ---");
+
+    // example
+    models::user user_new = {
+        ._id = mongoose::oid{"68bf502bc6f9a9832f03ef01"},
+        .info = {
+            .age = 27,
+            .name = "Miroslaw",
+            .gender = models::user_gender::MAN,
             .city = std::nullopt,
             .tags = {
                 mongoose::oid{"60a9b0e0c5f1b2a3d4e5f680"},
                 mongoose::oid{"60a9b0e0c5f1b2a3d4e5f678"}
             }
         },
-        .created_at = mongoose::types::date::from_timestamp(1778540232),
-        .updated_at = mongoose::types::date::from_timestamp(1778539457)
+        .created_at = mongoose::types::date::from_timestamp(1645705800),
+        .updated_at = mongoose::types::date::now()
     };
 
-    // parse C++ struct to BSON document value
-    auto doc = mongoose::to_bson(user_value);
+    // try bson document building
+    // and convert to JSON for preview
+    const auto bson_doc = mongoose::to_bson(user_new);
 
-    // bson to json string for preview
-    mongoose::logger::log(mongoose::logger::level::INFO, "[*] BSON preview -> \n%s",
-        bsoncxx::to_json(doc).c_str()
+    // if used json library
+    #ifdef MONGOOSE_USE_NLOHMANN_JSON
+
+    // json
+    const auto json_doc = nlohmann::json::parse(bsoncxx::to_json(bson_doc));
+
+    // log output
+    mongoose::logger::log(mongoose::logger::level::INFO,
+        "bson to json:\n%s\n", json_doc.dump(3).c_str()
     );
+
+    #endif
 }
 
 int main(int argc, char const *argv[]){
     // callback mongoose logger
     mongoose::logger::set_callback([](mongoose::logger::level level, const char* str){
         switch(level){
-            case mongoose::logger::level::DEBUG: printf("debug: %s\n", str); return;
-            case mongoose::logger::level::INFO: printf("%s\n", str); return;
-            case mongoose::logger::level::WARN: printf("warn: %s\n", str); return;
-            case mongoose::logger::level::ERROR: printf("error: %s\n", str); return;
+            case mongoose::logger::level::DEBUG: printf("debug: %s\n", str); break;
+            case mongoose::logger::level::INFO: printf("%s\n", str); break;
+            case mongoose::logger::level::WARN: printf("warn: %s\n", str); break;
+            case mongoose::logger::level::ERROR: printf("error: %s\n", str); break;
         }
     });
 
-    // parsing test
-    test_parse_from_json();
-
-    // build bson test
-    test_to_bson();
-
-    // done
-    mongoose::logger::log(mongoose::logger::level::INFO, "[OK] tests done!");
+    // methods
+    test_parse_json();
+    test_to_json();
+    test_bson_to_json();
 
     return 0;
 }

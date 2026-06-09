@@ -1,111 +1,190 @@
-#include <iostream>
-#include <nlohmann/json.hpp>
 #include <mongoose/json.hpp>
 #include <mongoose/logger.hpp>
 #include <mongoose/bson.hpp>
 #include <mongoose/types/date.hpp>
 #include <mongoose/types/oid.hpp>
+#include <mongoose/types/uuid.hpp>
+#include <mongoose/mongodb.hpp>
+#include <bsoncxx/builder/basic/kvp.hpp>
 
-// nlohmann_json macros
+using bsoncxx::builder::basic::kvp;
+using bsoncxx::builder::basic::make_document;
+
+// if using nlohmann json
+// nlohmann json macro for structs
+#ifdef MONGOOSE_USE_NLOHMANN_JSON
+
 #ifndef JSON_MODEL
 #define JSON_MODEL NLOHMANN_DEFINE_TYPE_INTRUSIVE
 #endif
 
-// only for testing
-// test models
-namespace model {
+#else
 
-struct post_stats {
-    mongoose::date last_at;
-    JSON_MODEL(post_stats, last_at);
+#ifndef JSON_MODEL
+#define JSON_MODEL(Type, ...)
+#endif
+
+#endif
+
+// test models
+namespace models {
+
+enum class product_type {
+    NONE,
+    CLOTH,
+    FOOD
 };
 
-struct post {
+struct product_size {
+    std::string name;
+    std::string value;
+    JSON_MODEL(product_size, name, value);
+};
+
+struct product {
     mongoose::oid _id;
-    std::optional<mongoose::oid> author_id;
-    std::string text;
-    post_stats stats;
+    std::optional<mongoose::uuid> id;
+    product_type type;
+    std::string name;
+    int price;
+    std::vector<product_size> sizes;
+    std::optional<mongoose::uuid> key;
     mongoose::date created_at;
-    std::optional<mongoose::date> updated_at;
-    std::optional<mongoose::date> deleted_at;
-    JSON_MODEL(post, _id, author_id, text, stats, created_at, updated_at, deleted_at);
+    JSON_MODEL(product, _id, id, type, sizes, key, created_at);
 };
 
 }
 
-// only for testing
-// test json raw text for parsing
-constexpr const char* post_raw_json = R"({
-    "_id": "68bf502bc6f9a9832f03ef01",
-    "author_id": "60a9b0e0c5f1b2a3d4e5f680",
-    "text": "any text string",
-    "stats": {
-        "last_at": 1772279920
-    },
-    "created_at": 1772279924,
-    "updated_at": 1772280600,
-    "deleted_at": null
-})";
+std::optional<mongoose::oid> test_bson_insert_mongo(mongoose::mongodb& mongo){
+    mongoose::logger::log(mongoose::logger::level::INFO, "--- test insert new document ---");
 
-static void test_parse_from_json(){
-    mongoose::logger::log(mongoose::logger::level::INFO, "[+] test parse_from_json");
+    // example
+    models::product product_new;
+    product_new.type = models::product_type::FOOD;
+    product_new.name = "Pizza";
+    product_new.price = 120;
+    product_new.created_at = mongoose::types::date::now();
+    product_new.sizes = {
+        models::product_size { .name="Small", .value="S" },
+        models::product_size { .name="Medium", .value="M" }
+    };
 
-    // parse to <T> model from JSON string
-    // return value if success parsing
-    // and cast BSON value to <T> 
-    const std::optional<model::post> value = mongoose::json::from_string<model::post>(post_raw_json);
+    // generate uuids
+    product_new.id = mongoose::types::uuid::generate_v7();
+    product_new.key = mongoose::types::uuid::generate_v4();
 
-    // failed, null value
-    if(!value){
-        mongoose::logger::log(mongoose::logger::level::WARN, "failed parse test model user");
-        return;
+    // try get connection from pool
+    const auto conn = mongo.pool.try_acquire();
+
+    // no connection 
+    if(!conn){
+        mongoose::logger::log(mongoose::logger::level::ERROR,
+            "failed get mongodb connection from pool, are you connected?"
+        );
+        return std::nullopt;
     }
 
-    // success parsing
-    // bson to json string for preview
-    mongoose::logger::log(mongoose::logger::level::INFO, "[*] from JSON to BSON preview -> \n%s",
-        bsoncxx::to_json(mongoose::to_bson(*value)).c_str()
+    // get collection
+    auto collection = conn.value()->database("mongoose").collection("test2");
+
+    // try bson document building
+    // and exclude '_id' field with oid
+    // is recommended to create an Object ID on database side
+    const auto bson_doc = mongoose::to_bson_exclude(product_new, "_id");
+
+    // insert docuemt
+    const auto result = collection.insert_one(bson_doc.view());
+
+    // failed insert result
+    if(!result){
+        mongoose::logger::log(mongoose::logger::level::ERROR, "failed insert docuemnt");
+        return std::nullopt;
+    }
+
+    // get and set new oid from mongodb
+    product_new._id = result->inserted_id().get_oid().value;
+
+    // log output
+    mongoose::logger::log(mongoose::logger::level::INFO,
+        "inserted new document: %s", product_new._id.to_string().c_str()
     );
+
+    return std::make_optional(product_new._id);
+}
+
+std::optional<models::product> test_bson_from_mongo(mongoose::mongodb& mongo, const std::optional<mongoose::oid>& doc_oid){
+    mongoose::logger::log(mongoose::logger::level::INFO, "--- test find exist document ---");
+
+    // try get connection from pool
+    const auto conn = mongo.pool.try_acquire();
+
+    // no connection 
+    if(!conn){
+        mongoose::logger::log(mongoose::logger::level::ERROR,
+            "failed get mongodb connection from pool, are you connected?"
+        );
+        return std::nullopt;
+    }
+
+    // get collection
+    auto collection = conn.value()->database("mongoose").collection("test2");
+
+    // make document filter
+    const auto filter = make_document(
+        kvp("_id", doc_oid.value())
+    );
+
+    // find query
+    const auto result = collection.find_one(filter.view());
+
+    // no result
+    if(!result){
+        mongoose::logger::log(mongoose::logger::level::ERROR, "failed find document");
+        return std::nullopt;
+    }
+
+    // try parse model from bson
+    try {
+        // parse model
+        models::product product_new = mongoose::from_bson<models::product>(result.value());
+        return std::make_optional(product_new);
+    }
+    catch(const std::exception& e){
+        // failed
+        return std::nullopt;
+    }
 }
 
 int main(int argc, char const *argv[]){
     // callback mongoose logger
     mongoose::logger::set_callback([](mongoose::logger::level level, const char* str){
         switch(level){
-            case mongoose::logger::level::DEBUG: printf("debug: %s\n", str); return;
-            case mongoose::logger::level::INFO: printf("%s\n", str); return;
-            case mongoose::logger::level::WARN: printf("warn: %s\n", str); return;
-            case mongoose::logger::level::ERROR: printf("error: %s\n", str); return;
+            case mongoose::logger::level::DEBUG: printf("debug: %s\n", str); break;
+            case mongoose::logger::level::INFO: printf("%s\n", str); break;
+            case mongoose::logger::level::WARN: printf("warn: %s\n", str); break;
+            case mongoose::logger::level::ERROR: printf("error: %s\n", str); break;
         }
     });
 
-    // test data with custom type date
-    model::post post_new = {
-        ._id = mongoose::oid{},
-        .author_id = mongoose::oid{"60a9b0e0c5f1b2a3d4e5f680"},
-        .text = "text",
-        .stats = {
-            .last_at = mongoose::date{}
-        },
-        .created_at = mongoose::types::date::from_timestamp(1772279924),
-        .updated_at = mongoose::date{},
-        .deleted_at = std::nullopt
-    };
+    // try connect to mongodb
+    mongoose::mongodb mongo("mongodb://root:password@localhost:27017");
 
-    // build BSON with custom types
-    const auto doc = mongoose::to_bson(post_new);
+    // methods
+    std::optional<mongoose::oid> inserted_oid = test_bson_insert_mongo(mongo);
+    std::optional<models::product> product_exist = test_bson_from_mongo(mongo, inserted_oid);
 
-    // bson to json string for preview
-    mongoose::logger::log(mongoose::logger::level::INFO, "[*] BSON preview -> \n%s",
-        bsoncxx::to_json(doc).c_str()
+    // product no exist, exit
+    if(!product_exist){
+        return -1;
+    }
+
+    // convert to json string
+    const std::string product_json = mongoose::json::to_string(*product_exist, 4);
+
+    // log output
+    mongoose::logger::log(mongoose::logger::level::INFO,
+        "product (json): \n%s\n", product_json.c_str()
     );
 
-    test_parse_from_json();
-
-    mongoose::logger::log(mongoose::logger::level::INFO, "[*] STRUCT to JSON -> \n%s",
-        mongoose::json::to_string(post_new).c_str()
-    );
-
-    /* nothing */
     return 0;
 }
