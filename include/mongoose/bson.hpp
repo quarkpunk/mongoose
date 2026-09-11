@@ -284,6 +284,9 @@ void serialize_array_element(bsoncxx::builder::stream::array& array_builder, con
     else if constexpr (BsonDateType<T>) {
         array_builder << mongoose::to_bson(item);
     }
+    else if constexpr (BsonUuidType<T>) {
+        array_builder << mongoose::to_bson(item);
+    }
     else if constexpr (is_custom_serializable<T>::value) {
         auto custom_doc = serialize_custom(item);
         array_builder << custom_doc.view();
@@ -497,12 +500,7 @@ T extract_array_element(const bsoncxx::array::element& element) {
         }
     }
     else if constexpr (BsonUuidType<T>) {
-        if (element.type() == bsoncxx::type::k_binary){
-            bsoncxx::types::b_binary binary_value = element.get_binary();
-            if (binary_value.sub_type == bsoncxx::binary_sub_type::k_uuid){
-                return mongoose::from_bson(element.get_binary());
-            }
-        }
+        return mongoose::from_bson(element.get_binary());
     }
     else if constexpr (AggregateStruct<T>) {
         auto sub_doc = element.get_document().view();
