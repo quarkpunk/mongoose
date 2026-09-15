@@ -19,6 +19,14 @@ namespace mongoose::types::oid {
         return bsoncxx::oid{str};
     }
 
+    // from string optional
+    inline std::optional<object_id> try_from_string(const std::string& str) {
+        try {
+            return std::make_optional(from_string(str));
+        }
+        catch(...) { return std::nullopt; }
+    }
+
     // to string
     inline std::string to_string(const object_id& oid) {
         return oid.to_string();

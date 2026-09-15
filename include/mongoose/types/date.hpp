@@ -67,6 +67,14 @@ namespace mongoose::types::date {
         return timepoint;
     }
 
+    // from string optional
+    inline std::optional<time_point> try_from_string(const std::string& iso_str) {
+        try {
+            return std::make_optional(from_string(iso_str));
+        }
+        catch(...) { return std::nullopt; }
+    }
+
     // to timestamp
     inline int64_t to_timestamp(const time_point& timepoint) noexcept {
         return std::chrono::duration_cast<std::chrono::milliseconds>(

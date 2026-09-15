@@ -45,6 +45,14 @@ namespace mongoose::types::uuid {
         }
     }
 
+    // from string optional
+    inline std::optional<mongoose::uuid> try_from_string(const std::string& str) {
+        try {
+            return std::make_optional(from_string(str));
+        } 
+        catch (...) { return std::nullopt; }
+    }
+
     // to string from uuid
     inline std::string to_string(const mongoose::uuid& value) {
         return boost::uuids::to_string(value);
